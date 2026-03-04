@@ -1,4 +1,4 @@
-import { TIER_CONFIG, type RankTier } from "@/lib/mock-data";
+import { TIER_CONFIG, type RankTier } from "@/lib/constants";
 
 interface TierBadgeProps {
   tier: RankTier;
@@ -8,6 +8,7 @@ interface TierBadgeProps {
 
 export default function TierBadge({ tier, showLabel = true, size = "sm" }: TierBadgeProps) {
   const config = TIER_CONFIG[tier];
+  if (!config) return null;
   const dotSize = size === "sm" ? "w-2 h-2" : "w-2.5 h-2.5";
   const textSize = size === "sm" ? "text-[10px]" : "text-xs";
 

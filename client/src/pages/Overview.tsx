@@ -1,51 +1,47 @@
 /**
- * Overview Page — Platform-wide dashboard with key metrics
- * Design: Dark Trading Desk — high information density with gold accents
+ * Overview Page — Platform-wide dashboard with key metrics from real API
  */
-import { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  Users, Trophy, MessageSquare, TrendingUp, DollarSign,
-  AlertTriangle, Clock, Activity, Globe,
+  Users, Trophy, MessageSquare, Clock, Activity, DollarSign, Globe, AlertTriangle, Loader2,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, BarChart, Bar,
 } from "recharts";
+import { trpc } from "@/lib/trpc";
 import StatCard from "@/components/StatCard";
-import TierBadge from "@/components/TierBadge";
 import StatusBadge from "@/components/StatusBadge";
-import {
-  getPlatformStats, competitions, users, registrations,
-  chatMessages, TIER_CONFIG, type RankTier,
-} from "@/lib/mock-data";
+import { TIER_CONFIG, type RankTier } from "@/lib/constants";
 
 const HERO_BG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663325188422/6Yq9eJsfZbyndNatnSjnyG/hero-banner-dBxu2K7U3KYfS6RayVCXPZ.webp";
 
 const tierColors = Object.values(TIER_CONFIG).map((t) => t.color);
+const tierLabels = Object.entries(TIER_CONFIG).map(([key, val]) => ({ tier: key, ...val }));
 
 export default function Overview() {
-  const stats = useMemo(() => getPlatformStats(), []);
+  const { data: stats, isLoading: statsLoading } = trpc.stats.platform.useQuery();
+  const { data: tierDist, isLoading: tierLoading } = trpc.stats.tierDistribution.useQuery();
+  const { data: regTrend } = trpc.stats.registrationTrend.useQuery();
+  const { data: countryDist } = trpc.stats.countryDistribution.useQuery();
+  const { data: comps } = trpc.competitions.list.useQuery();
 
-  const recentUsers = useMemo(
-    () => [...users].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5),
-    []
-  );
+  const liveComps = comps?.filter(c => c.status === "live" || c.status === "registration_open") || [];
 
-  const pendingRegs = useMemo(
-    () => registrations.filter((r) => r.status === "pending").slice(0, 5),
-    []
-  );
+  // Enrich tier distribution with labels/colors
+  const tierData = tierDist?.map(t => ({
+    ...t,
+    label: TIER_CONFIG[t.tier as RankTier]?.label || t.tier,
+    color: TIER_CONFIG[t.tier as RankTier]?.color || "#848E9C",
+  })) || [];
 
-  const flaggedChats = useMemo(
-    () => chatMessages.filter((m) => m.status !== "visible").slice(0, 5),
-    []
-  );
-
-  const liveComps = useMemo(
-    () => competitions.filter((c) => c.status === "live" || c.status === "registration_open"),
-    []
-  );
+  if (statsLoading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#F0B90B]" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
@@ -81,39 +77,36 @@ export default function Overview() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
         <StatCard
           title="总用户数"
-          value={stats.totalUsers}
-          subtitle={`${stats.activeUsers} 人本周活跃`}
+          value={stats?.totalUsers ?? 0}
           icon={<Users className="w-5 h-5" />}
           accentColor="#3B82F6"
           delay={0}
         />
         <StatCard
           title="总比赛数"
-          value={stats.totalCompetitions}
-          subtitle={`${stats.liveCompetitions} 场进行中`}
+          value={stats?.totalCompetitions ?? 0}
           icon={<Trophy className="w-5 h-5" />}
           accentColor="#F0B90B"
           delay={0.05}
         />
         <StatCard
           title="待审核报名"
-          value={stats.pendingRegistrations}
+          value={stats?.pendingRegistrations ?? 0}
           subtitle="需要处理"
           icon={<Clock className="w-5 h-5" />}
           accentColor="#F0B90B"
-          trend={stats.pendingRegistrations > 10 ? { value: 15, label: "较上周" } : undefined}
           delay={0.1}
         />
         <StatCard
           title="总交易次数"
-          value={stats.totalTrades.toLocaleString()}
+          value={(stats?.totalTrades ?? 0).toLocaleString()}
           icon={<Activity className="w-5 h-5" />}
           accentColor="#0ECB81"
           delay={0.15}
         />
         <StatCard
           title="总奖金发放"
-          value={`$${stats.totalPrize.toLocaleString()}`}
+          value={`$${(stats?.totalPrize ?? 0).toLocaleString()}`}
           icon={<DollarSign className="w-5 h-5" />}
           accentColor="#0ECB81"
           delay={0.2}
@@ -131,7 +124,7 @@ export default function Overview() {
         >
           <h3 className="font-display font-semibold text-sm text-foreground mb-4">用户注册趋势（近14天）</h3>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={stats.registrationTrend}>
+            <AreaChart data={regTrend || []}>
               <defs>
                 <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#F0B90B" stopOpacity={0.3} />
@@ -160,7 +153,7 @@ export default function Overview() {
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
                 <Pie
-                  data={stats.tierDistribution}
+                  data={tierData}
                   cx="50%"
                   cy="50%"
                   innerRadius={40}
@@ -168,8 +161,8 @@ export default function Overview() {
                   paddingAngle={3}
                   dataKey="count"
                 >
-                  {stats.tierDistribution.map((entry, i) => (
-                    <Cell key={i} fill={tierColors[i]} />
+                  {tierData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -180,104 +173,13 @@ export default function Overview() {
             </ResponsiveContainer>
           </div>
           <div className="grid grid-cols-3 gap-2 mt-2">
-            {stats.tierDistribution.map((t) => (
+            {tierData.map((t) => (
               <div key={t.tier} className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full" style={{ background: t.color }} />
                 <span className="text-[10px] text-muted-foreground">{t.label}</span>
                 <span className="text-[10px] font-mono font-semibold text-foreground ml-auto">{t.count}</span>
               </div>
             ))}
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Bottom Panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Users */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="rounded-xl border border-border bg-card"
-        >
-          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-            <h3 className="font-display font-semibold text-sm text-foreground">最新注册用户</h3>
-            <a href="/users" className="text-[10px] text-[#F0B90B] hover:underline font-medium">查看全部</a>
-          </div>
-          <div className="divide-y divide-border">
-            {recentUsers.map((u) => (
-              <div key={u.id} className="px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-foreground shrink-0">
-                    {u.username.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{u.username}</p>
-                    <p className="text-[10px] text-muted-foreground">{u.country} · {new Date(u.createdAt).toLocaleDateString("zh-CN")}</p>
-                  </div>
-                </div>
-                <TierBadge tier={u.rankTier} />
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Pending Registrations */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="rounded-xl border border-border bg-card"
-        >
-          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-            <h3 className="font-display font-semibold text-sm text-foreground">待审核报名</h3>
-            <a href="/competitions" className="text-[10px] text-[#F0B90B] hover:underline font-medium">查看全部</a>
-          </div>
-          <div className="divide-y divide-border">
-            {pendingRegs.length === 0 ? (
-              <div className="px-5 py-8 text-center text-sm text-muted-foreground">暂无待审核报名</div>
-            ) : (
-              pendingRegs.map((r) => (
-                <div key={r.id} className="px-5 py-3 flex items-center justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{r.username}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{r.competitionTitle}</p>
-                  </div>
-                  <StatusBadge status="pending" />
-                </div>
-              ))
-            )}
-          </div>
-        </motion.div>
-
-        {/* Flagged Messages */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          className="rounded-xl border border-border bg-card"
-        >
-          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-            <h3 className="font-display font-semibold text-sm text-foreground flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-[#F6465D]" />
-              标记消息
-            </h3>
-            <a href="/chat" className="text-[10px] text-[#F0B90B] hover:underline font-medium">查看全部</a>
-          </div>
-          <div className="divide-y divide-border">
-            {flaggedChats.length === 0 ? (
-              <div className="px-5 py-8 text-center text-sm text-muted-foreground">暂无标记消息</div>
-            ) : (
-              flaggedChats.map((m) => (
-                <div key={m.id} className="px-5 py-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-foreground">{m.username}</span>
-                    <StatusBadge status={m.status} />
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">{m.message}</p>
-                </div>
-              ))
-            )}
           </div>
         </motion.div>
       </div>
@@ -293,16 +195,20 @@ export default function Overview() {
           <Globe className="w-4 h-4 text-[#3B82F6]" />
           用户地区分布
         </h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={stats.countryDistribution.slice(0, 10)}>
-            <XAxis dataKey="country" tick={{ fontSize: 10, fill: "#848E9C" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: "#848E9C" }} axisLine={false} tickLine={false} width={30} />
-            <Tooltip
-              contentStyle={{ background: "#1C2030", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12, color: "#D1D4DC" }}
-            />
-            <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        {(countryDist?.length ?? 0) > 0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={(countryDist || []).slice(0, 10)}>
+              <XAxis dataKey="country" tick={{ fontSize: 10, fill: "#848E9C" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#848E9C" }} axisLine={false} tickLine={false} width={30} />
+              <Tooltip
+                contentStyle={{ background: "#1C2030", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12, color: "#D1D4DC" }}
+              />
+              <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">暂无地区数据</div>
+        )}
       </motion.div>
     </div>
   );

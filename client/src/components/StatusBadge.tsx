@@ -1,4 +1,4 @@
-import { STATUS_CONFIG } from "@/lib/mock-data";
+import { STATUS_CONFIG } from "@/lib/constants";
 
 interface StatusBadgeProps {
   status: string;

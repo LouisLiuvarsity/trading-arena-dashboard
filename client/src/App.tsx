@@ -10,8 +10,9 @@ import UsersPage from "./pages/UsersPage";
 import CompetitionsPage from "./pages/CompetitionsPage";
 import ChatPage from "./pages/ChatPage";
 import StatsPage from "./pages/StatsPage";
-
+import AdminLogsPage from "./pages/AdminLogsPage";
 function Router() {
+  // make sure to consider if you need authentication for certain routes
   return (
     <DashboardLayout>
       <Switch>
@@ -20,6 +21,7 @@ function Router() {
         <Route path="/competitions" component={CompetitionsPage} />
         <Route path="/chat" component={ChatPage} />
         <Route path="/stats" component={StatsPage} />
+        <Route path="/logs" component={AdminLogsPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
