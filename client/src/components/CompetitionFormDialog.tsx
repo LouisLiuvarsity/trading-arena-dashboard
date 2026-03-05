@@ -24,7 +24,7 @@ async function fetchBinanceSymbols(): Promise<BinanceSymbolInfo[]> {
     const data = await res.json();
     cachedSymbols = (data.symbols as any[])
       .filter((s: any) =>
-        s.contractType === "PERPETUAL" &&
+        (s.contractType === "PERPETUAL" || s.contractType === "TRADIFI_PERPETUAL") &&
         s.status === "TRADING" &&
         (s.quoteAsset === "USDT" || s.quoteAsset === "USDC")
       )
