@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Calendar, Plus, Trophy, Loader2, Hash, Archive, ArchiveRestore,
+  Calendar, Plus, Trophy, Loader2, Hash, Archive, ArchiveRestore, Trash2, AlertTriangle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { formatDate } from "@/lib/constants";
 export default function SeasonsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
     slug: "",
@@ -41,6 +42,15 @@ export default function SeasonsPage() {
       utils.seasons.list.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
+  });
+
+  const deleteMutation = trpc.seasons.delete.useMutation({
+    onSuccess: (data) => {
+      toast.success(`赛季已永久删除（级联删除 ${data.competitionsDeleted} 场比赛）`);
+      utils.seasons.list.invalidate();
+      setConfirmDeleteId(null);
+    },
+    onError: (err: any) => { toast.error(err.message); setConfirmDeleteId(null); },
   });
 
   const handleCreate = () => {
@@ -244,6 +254,15 @@ export default function SeasonsPage() {
                 >
                   {season.archived === 1 ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                 </button>
+                {season.archived === 1 && (
+                  <button
+                    onClick={() => setConfirmDeleteId(season.id)}
+                    className="p-1.5 rounded-md hover:bg-[oklch(0.65_0.2_25/10%)] text-[#F6465D] transition-colors"
+                    title="永久删除"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>
@@ -255,6 +274,49 @@ export default function SeasonsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#F6465D]/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-[#F6465D]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">确认永久删除</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  赛季「{seasons?.find(s => s.id === confirmDeleteId)?.name}」
+                </p>
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-[#F6465D]/5 border border-[#F6465D]/20 text-xs text-foreground space-y-1">
+              <p>此操作将永久删除以下所有数据且不可恢复：</p>
+              <ul className="list-disc list-inside text-muted-foreground">
+                <li>赛季本身</li>
+                <li>该赛季下的所有比赛及其配置</li>
+                <li>所有比赛的报名记录、结果、交易记录、聊天消息</li>
+              </ul>
+            </div>
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 rounded-lg bg-secondary text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate({ id: confirmDeleteId })}
+                disabled={deleteMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F6465D] text-white text-sm font-semibold hover:bg-[#F6465D]/80 transition-colors disabled:opacity-50"
+              >
+                {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

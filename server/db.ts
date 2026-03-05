@@ -971,3 +971,67 @@ export async function archiveSeason(id: number, archived: boolean) {
   await db.update(seasons).set({ archived: archived ? 1 : 0 }).where(eq(seasons.id, id));
   return true;
 }
+
+// ─── Permanent Delete ────────────────────────────────────────────────────────
+
+export async function deleteCompetitionCascade(id: number): Promise<{
+  registrations: number;
+  matchResultRows: number;
+  tradeRows: number;
+  chatRows: number;
+}> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get competition to find matchId
+  const [comp] = await db.select({ matchId: competitions.matchId }).from(competitions).where(eq(competitions.id, id)).limit(1);
+  if (!comp) throw new Error(`Competition #${id} not found`);
+
+  // 1. Delete trades via matchId
+  let tradeRows = 0;
+  if (comp.matchId) {
+    const tradeResult = await db.delete(trades).where(eq(trades.matchId, comp.matchId));
+    tradeRows = tradeResult[0].affectedRows ?? 0;
+  }
+
+  // 2. Delete match results
+  const mrResult = await db.delete(matchResults).where(eq(matchResults.competitionId, id));
+  const matchResultRows = mrResult[0].affectedRows ?? 0;
+
+  // 3. Delete registrations
+  const regResult = await db.delete(competitionRegistrations).where(eq(competitionRegistrations.competitionId, id));
+  const registrations = regResult[0].affectedRows ?? 0;
+
+  // 4. Delete chat messages + their moderation records
+  const msgs = await db.select({ id: chatMessages.id }).from(chatMessages).where(eq(chatMessages.competitionId, id));
+  let chatRows = 0;
+  if (msgs.length > 0) {
+    const msgIds = msgs.map(m => m.id);
+    await db.delete(chatModeration).where(inArray(chatModeration.chatMessageId, msgIds));
+    const chatResult = await db.delete(chatMessages).where(eq(chatMessages.competitionId, id));
+    chatRows = chatResult[0].affectedRows ?? 0;
+  }
+
+  // 5. Delete competition itself
+  await db.delete(competitions).where(eq(competitions.id, id));
+
+  return { registrations, matchResultRows, tradeRows, chatRows };
+}
+
+export async function deleteSeasonCascade(id: number): Promise<{ competitionsDeleted: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Find all competitions in this season
+  const comps = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.seasonId, id));
+
+  // Cascade delete each competition
+  for (const comp of comps) {
+    await deleteCompetitionCascade(comp.id);
+  }
+
+  // Delete the season itself
+  await db.delete(seasons).where(eq(seasons.id, id));
+
+  return { competitionsDeleted: comps.length };
+}

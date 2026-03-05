@@ -14,6 +14,7 @@ import {
   getSeasons,
   createSeasonDirect, createCompetitionDirect, updateCompetitionDirect,
   archiveCompetition, archiveSeason,
+  deleteCompetitionCascade, deleteSeasonCascade,
 } from "./db";
 import * as arenaClient from "./arenaClient";
 
@@ -68,6 +69,22 @@ export const appRouter = router({
           });
         }
         return { success: result };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const stats = await deleteSeasonCascade(input.id);
+        await createAdminLog({
+          adminUserId: ctx.user.id,
+          adminName: ctx.user.name || "Admin",
+          action: "season_delete",
+          targetType: "season",
+          targetId: String(input.id),
+          description: `永久删除赛季 #${input.id}（级联删除 ${stats.competitionsDeleted} 场比赛）`,
+          metadata: JSON.stringify(stats),
+        });
+        return { success: true, ...stats };
       }),
   }),
 
@@ -286,6 +303,22 @@ export const appRouter = router({
           });
         }
         return { success: result };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const stats = await deleteCompetitionCascade(input.id);
+        await createAdminLog({
+          adminUserId: ctx.user.id,
+          adminName: ctx.user.name || "Admin",
+          action: "competition_delete",
+          targetType: "competition",
+          targetId: String(input.id),
+          description: `永久删除比赛 #${input.id}（报名 ${stats.registrations}、结果 ${stats.matchResultRows}、交易 ${stats.tradeRows}、聊天 ${stats.chatRows} 条）`,
+          metadata: JSON.stringify(stats),
+        });
+        return { success: true, ...stats };
       }),
   }),
 

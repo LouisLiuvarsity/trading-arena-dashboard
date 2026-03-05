@@ -5,7 +5,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, DollarSign, Clock, CheckCircle, XCircle, Download,
-  ChevronDown, ChevronUp, Loader2, Plus, Edit3, Copy, Archive, ArchiveRestore,
+  ChevronDown, ChevronUp, Loader2, Plus, Edit3, Copy, Archive, ArchiveRestore, Trash2, AlertTriangle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ export default function CompetitionsPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editComp, setEditComp] = useState<any | null>(null);
   const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -57,6 +58,16 @@ export default function CompetitionsPage() {
       utils.competitions.list.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
+  });
+
+  const deleteMutation = trpc.competitions.delete.useMutation({
+    onSuccess: (data) => {
+      toast.success(`比赛已永久删除（清除报名 ${data.registrations}、结果 ${data.matchResultRows}、交易 ${data.tradeRows}、聊天 ${data.chatRows} 条）`);
+      utils.competitions.list.invalidate();
+      utils.stats.platform.invalidate();
+      setConfirmDeleteId(null);
+    },
+    onError: (err: any) => { toast.error(err.message); setConfirmDeleteId(null); },
   });
 
   const archivedCount = (competitions || []).filter(c => c.archived === 1).length;
@@ -246,6 +257,15 @@ export default function CompetitionsPage() {
                     >
                       {comp.archived === 1 ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                     </button>
+                    {comp.archived === 1 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(comp.id); }}
+                        className="p-1.5 rounded-md hover:bg-[oklch(0.65_0.2_25/10%)] text-[#F6465D] transition-colors"
+                        title="永久删除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                     <div className="text-right hidden sm:block">
                       <p className="text-xs text-muted-foreground">报名</p>
                       <p className="text-sm font-mono font-semibold text-foreground">
@@ -440,6 +460,51 @@ export default function CompetitionsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#F6465D]/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-[#F6465D]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">确认永久删除</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  比赛「{competitions?.find(c => c.id === confirmDeleteId)?.title}」
+                </p>
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-[#F6465D]/5 border border-[#F6465D]/20 text-xs text-foreground space-y-1">
+              <p>此操作将永久删除以下所有数据且不可恢复：</p>
+              <ul className="list-disc list-inside text-muted-foreground">
+                <li>比赛本身及其配置</li>
+                <li>所有报名记录</li>
+                <li>所有比赛结果与排名</li>
+                <li>所有交易记录</li>
+                <li>所有比赛聊天消息</li>
+              </ul>
+            </div>
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 rounded-lg bg-secondary text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate({ id: confirmDeleteId })}
+                disabled={deleteMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F6465D] text-white text-sm font-semibold hover:bg-[#F6465D]/80 transition-colors disabled:opacity-50"
+              >
+                {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create/Edit Dialog */}
       <CompetitionFormDialog
