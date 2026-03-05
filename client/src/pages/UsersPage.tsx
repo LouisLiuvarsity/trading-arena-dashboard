@@ -45,9 +45,10 @@ export default function UsersPage() {
 
   const banMutation = trpc.users.ban.useMutation({
     onSuccess: () => {
-      toast.success("用户已封禁");
+      toast.success("用户已封禁，聊天记录已清除");
       utils.users.list.invalidate();
       utils.users.detail.invalidate();
+      utils.chat.list.invalidate();
     },
     onError: (err) => toast.error(`封禁失败: ${err.message}`),
   });
@@ -239,7 +240,7 @@ export default function UsersPage() {
                             </button>
                           ) : (
                             <button
-                              onClick={() => banMutation.mutate({ id: u.id })}
+                              onClick={() => { if (confirm("确认封禁该用户？封禁后将清除其所有聊天记录，且不可恢复。")) banMutation.mutate({ id: u.id }); }}
                               className="p-1.5 rounded-md hover:bg-[oklch(0.65_0.2_25/10%)] text-[#F6465D] transition-colors"
                               title="封禁"
                             >
@@ -450,7 +451,7 @@ export default function UsersPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => { banMutation.mutate({ id: userDetail.account.id }); setSelectedUserId(null); }}
+                        onClick={() => { if (confirm("确认封禁该用户？封禁后将清除其所有聊天记录，且不可恢复。")) { banMutation.mutate({ id: userDetail.account.id }); setSelectedUserId(null); } }}
                         className="w-full py-2.5 rounded-lg bg-[oklch(0.65_0.2_25/15%)] text-[#F6465D] font-medium text-sm hover:bg-[oklch(0.65_0.2_25/25%)] transition-colors"
                       >
                         <Shield className="w-4 h-4 inline mr-2" />

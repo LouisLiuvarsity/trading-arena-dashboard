@@ -292,6 +292,27 @@ export async function banArenaUser(arenaAccountId: number) {
   return true;
 }
 
+export async function deleteUserChatMessages(arenaAccountId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  // 查出该用户所有消息ID
+  const msgs = await db.select({ id: chatMessages.id })
+    .from(chatMessages)
+    .where(eq(chatMessages.arenaAccountId, arenaAccountId));
+
+  if (msgs.length === 0) return 0;
+
+  const msgIds = msgs.map(m => m.id);
+
+  // 删除关联的审核记录
+  await db.delete(chatModeration).where(inArray(chatModeration.chatMessageId, msgIds));
+  // 删除聊天消息
+  await db.delete(chatMessages).where(eq(chatMessages.arenaAccountId, arenaAccountId));
+
+  return msgs.length;
+}
+
 export async function unbanArenaUser(arenaAccountId: number) {
   const db = await getDb();
   if (!db) return false;

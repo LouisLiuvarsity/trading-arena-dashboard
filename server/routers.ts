@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
-  getArenaUsers, getArenaUserDetail, banArenaUser, unbanArenaUser,
+  getArenaUsers, getArenaUserDetail, banArenaUser, unbanArenaUser, deleteUserChatMessages,
   getCompetitions, getCompetitionRegistrations, updateRegistrationStatus,
   getChatMessages, moderateMessage, batchModerateMessages,
   getPlatformStats, getTierDistribution, getCompetitionTrends,
@@ -76,13 +76,14 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const result = await banArenaUser(input.id);
         if (result) {
+          const deletedCount = await deleteUserChatMessages(input.id);
           await createAdminLog({
             adminUserId: ctx.user.id,
             adminName: ctx.user.name || "Admin",
             action: "user_ban",
             targetType: "user",
             targetId: String(input.id),
-            description: `封禁用户 #${input.id}`,
+            description: `封禁用户 #${input.id}，清除 ${deletedCount} 条聊天记录`,
           });
         }
         return { success: result };
