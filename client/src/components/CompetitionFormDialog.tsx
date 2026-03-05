@@ -9,6 +9,15 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { CompetitionType } from "@/lib/constants";
 
+/** Supported trading pairs — must stay in sync with trading-arena/shared/tradingPair.ts */
+const SUPPORTED_SYMBOLS = [
+  { symbol: "SOLUSDT", label: "SOL/USDT" },
+  { symbol: "BTCUSDT", label: "BTC/USDT" },
+  { symbol: "ETHUSDT", label: "ETH/USDT" },
+  { symbol: "BNBUSDT", label: "BNB/USDT" },
+  { symbol: "DOGEUSDT", label: "DOGE/USDT" },
+];
+
 interface CompetitionFormData {
   seasonId: number;
   title: string;
@@ -420,10 +429,14 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">交易对</label>
-                  <input type="text" value={form.symbol}
+                  <select value={form.symbol}
                     onChange={(e) => set("symbol", e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
-                  />
+                  >
+                    {SUPPORTED_SYMBOLS.map((s) => (
+                      <option key={s.symbol} value={s.symbol}>{s.label} ({s.symbol})</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">初始资金</label>
