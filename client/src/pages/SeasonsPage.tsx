@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Calendar, Plus, Trophy, Loader2, Hash,
+  Calendar, Plus, Trophy, Loader2, Hash, Archive, ArchiveRestore,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { formatDate } from "@/lib/constants";
 
 export default function SeasonsPage() {
   const [showCreate, setShowCreate] = useState(false);
+  const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [form, setForm] = useState({
     name: "",
     slug: "",
@@ -30,6 +31,14 @@ export default function SeasonsPage() {
       utils.seasons.list.invalidate();
       setShowCreate(false);
       setForm({ name: "", slug: "", startDate: "", endDate: "" });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const archiveMutation = trpc.seasons.archive.useMutation({
+    onSuccess: (_data, variables) => {
+      toast.success(variables.archived ? "赛季已归档" : "赛季已取消归档");
+      utils.seasons.list.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -63,6 +72,13 @@ export default function SeasonsPage() {
     );
   }
 
+  const archivedCount = (seasons || []).filter(s => s.archived === 1).length;
+  const filteredSeasons = (seasons || []).filter(s => {
+    if (archiveFilter === "active") return s.archived !== 1;
+    if (archiveFilter === "archived") return s.archived === 1;
+    return true;
+  });
+
   const activeSeasons = (seasons || []).filter(s => s.status === "active").length;
   const totalComps = (seasons || []).reduce((s, r) => s + r.competitionCount, 0);
 
@@ -81,6 +97,27 @@ export default function SeasonsPage() {
           <Plus className="w-4 h-4" />
           创建赛季
         </button>
+      </div>
+
+      {/* Archive Filter Tabs */}
+      <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1 w-fit">
+        {([
+          { key: "active" as const, label: "活跃" },
+          { key: "archived" as const, label: `已归档${archivedCount > 0 ? ` (${archivedCount})` : ""}` },
+          { key: "all" as const, label: "全部" },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setArchiveFilter(tab.key)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              archiveFilter === tab.key
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Quick Stats */}
@@ -162,7 +199,7 @@ export default function SeasonsPage() {
 
       {/* Season Cards */}
       <div className="space-y-3">
-        {(seasons || []).map((season) => (
+        {filteredSeasons.map((season) => (
           <motion.div
             key={season.id}
             layout
@@ -177,6 +214,9 @@ export default function SeasonsPage() {
                   <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                     {season.name}
                     <StatusBadge status={season.status || "active"} />
+                    {season.archived === 1 && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#6B7280]/15 text-[#6B7280]">已归档</span>
+                    )}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {season.slug} · 衰减系数 {season.pointsDecayFactor}
@@ -196,14 +236,22 @@ export default function SeasonsPage() {
                     {formatDate(season.startDate)} ~ {formatDate(season.endDate)}
                   </p>
                 </div>
+                <button
+                  onClick={() => archiveMutation.mutate({ id: season.id, archived: season.archived !== 1 })}
+                  disabled={archiveMutation.isPending}
+                  className="p-1.5 rounded-md hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  title={season.archived === 1 ? "取消归档" : "归档"}
+                >
+                  {season.archived === 1 ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                </button>
               </div>
             </div>
           </motion.div>
         ))}
 
-        {(seasons || []).length === 0 && (
+        {filteredSeasons.length === 0 && (
           <div className="text-center py-16 text-sm text-muted-foreground">
-            暂无赛季数据，点击上方按钮创建第一个赛季
+            {archiveFilter === "archived" ? "暂无已归档的赛季" : archiveFilter === "all" ? "暂无赛季数据" : "暂无赛季数据，点击上方按钮创建第一个赛季"}
           </div>
         )}
       </div>

@@ -37,6 +37,7 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   deleted: { label: "已删除", color: "#F6465D" },
   active: { label: "活跃", color: "#0ECB81" },
   banned: { label: "已封禁", color: "#F6465D" },
+  archived: { label: "已归档", color: "#6B7280" },
 };
 
 export const COMP_TYPE_CONFIG: Record<CompetitionType, { label: string; color: string }> = {

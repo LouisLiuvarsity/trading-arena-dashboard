@@ -13,6 +13,7 @@ import {
   getAllArenaUsersForExport, getAllCompetitionsForExport, getAllAdminLogsForExport,
   getSeasons,
   createSeasonDirect, createCompetitionDirect, updateCompetitionDirect,
+  archiveCompetition, archiveSeason,
 } from "./db";
 import * as arenaClient from "./arenaClient";
 
@@ -50,6 +51,23 @@ export const appRouter = router({
           metadata: JSON.stringify(input),
         });
         return { id };
+      }),
+
+    archive: adminProcedure
+      .input(z.object({ id: z.number().positive(), archived: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        const result = await archiveSeason(input.id, input.archived);
+        if (result) {
+          await createAdminLog({
+            adminUserId: ctx.user.id,
+            adminName: ctx.user.name || "Admin",
+            action: input.archived ? "season_archive" : "season_unarchive",
+            targetType: "season",
+            targetId: String(input.id),
+            description: `${input.archived ? "归档" : "取消归档"}赛季 #${input.id}`,
+          });
+        }
+        return { success: result };
       }),
   }),
 
@@ -251,6 +269,23 @@ export const appRouter = router({
           description: `复制比赛 #${input.id} → 新比赛 #${result.id}`,
         });
         return result;
+      }),
+
+    archive: adminProcedure
+      .input(z.object({ id: z.number().positive(), archived: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        const result = await archiveCompetition(input.id, input.archived);
+        if (result) {
+          await createAdminLog({
+            adminUserId: ctx.user.id,
+            adminName: ctx.user.name || "Admin",
+            action: input.archived ? "competition_archive" : "competition_unarchive",
+            targetType: "competition",
+            targetId: String(input.id),
+            description: `${input.archived ? "归档" : "取消归档"}比赛 #${input.id}`,
+          });
+        }
+        return { success: result };
       }),
   }),
 

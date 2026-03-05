@@ -2,7 +2,7 @@
  * CompetitionStatusControl — Shows current status and available transitions
  */
 import { useState } from "react";
-import { ArrowRight, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowRight, AlertTriangle, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import StatusBadge from "@/components/StatusBadge";
@@ -11,6 +11,8 @@ import { VALID_TRANSITIONS, STATUS_CONFIG, type CompetitionStatus } from "@/lib/
 interface Props {
   competitionId: number;
   currentStatus: string;
+  archived?: boolean;
+  onArchive?: (archived: boolean) => void;
 }
 
 const TRANSITION_LABELS: Record<string, { label: string; color: string; dangerous?: boolean }> = {
@@ -23,7 +25,7 @@ const TRANSITION_LABELS: Record<string, { label: string; color: string; dangerou
   cancelled: { label: "取消比赛", color: "#F6465D", dangerous: true },
 };
 
-export default function CompetitionStatusControl({ competitionId, currentStatus }: Props) {
+export default function CompetitionStatusControl({ competitionId, currentStatus, archived, onArchive }: Props) {
   const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
@@ -41,8 +43,27 @@ export default function CompetitionStatusControl({ competitionId, currentStatus 
   });
 
   const validTransitions = VALID_TRANSITIONS[currentStatus] || [];
+  const isTerminal = currentStatus === "completed" || currentStatus === "cancelled";
 
-  if (validTransitions.length === 0) return null;
+  if (validTransitions.length === 0 && !isTerminal) return null;
+
+  if (validTransitions.length === 0 && isTerminal) {
+    if (!onArchive) return null;
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">终态:</span>
+        <StatusBadge status={currentStatus} />
+        <button
+          onClick={() => onArchive(!archived)}
+          className="px-3 py-1 rounded-md text-xs font-medium transition-colors"
+          style={{ background: "#6B728015", color: "#6B7280" }}
+        >
+          {archived ? <ArchiveRestore className="w-3 h-3 inline mr-1" /> : <Archive className="w-3 h-3 inline mr-1" />}
+          {archived ? "取消归档" : "归档比赛"}
+        </button>
+      </div>
+    );
+  }
 
   const handleTransition = (target: string) => {
     const info = TRANSITION_LABELS[target];

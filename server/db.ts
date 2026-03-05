@@ -81,6 +81,7 @@ export async function getSeasons() {
       startDate: seasons.startDate,
       endDate: seasons.endDate,
       pointsDecayFactor: seasons.pointsDecayFactor,
+      archived: seasons.archived,
       createdAt: seasons.createdAt,
     })
     .from(seasons)
@@ -404,6 +405,7 @@ export async function createCompetitionDirect(input: {
     requireMinTier: input.requireMinTier ?? null,
     inviteOnly: input.inviteOnly ? 1 : 0,
     createdBy: input.createdBy ?? null,
+    archived: 0,
     createdAt: now,
     updatedAt: now,
   });
@@ -459,6 +461,7 @@ export async function getCompetitions() {
       symbol: competitions.symbol,
       startingCapital: competitions.startingCapital,
       prizePool: competitions.prizePool,
+      archived: competitions.archived,
       createdAt: competitions.createdAt,
     })
     .from(competitions)
@@ -932,6 +935,7 @@ export async function getAllCompetitionsForExport() {
       title: competitions.title,
       competitionType: competitions.competitionType,
       status: competitions.status,
+      archived: competitions.archived,
       maxParticipants: competitions.maxParticipants,
       startTime: competitions.startTime,
       endTime: competitions.endTime,
@@ -950,4 +954,20 @@ export async function getAllAdminLogsForExport() {
     .select()
     .from(adminLogs)
     .orderBy(desc(adminLogs.createdAt));
+}
+
+// ─── Archive ─────────────────────────────────────────────────────────────────
+
+export async function archiveCompetition(id: number, archived: boolean) {
+  const db = await getDb();
+  if (!db) return false;
+  await db.update(competitions).set({ archived: archived ? 1 : 0, updatedAt: Date.now() }).where(eq(competitions.id, id));
+  return true;
+}
+
+export async function archiveSeason(id: number, archived: boolean) {
+  const db = await getDb();
+  if (!db) return false;
+  await db.update(seasons).set({ archived: archived ? 1 : 0 }).where(eq(seasons.id, id));
+  return true;
 }

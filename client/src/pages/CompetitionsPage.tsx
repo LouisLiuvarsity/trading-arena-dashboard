@@ -5,7 +5,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, DollarSign, Clock, CheckCircle, XCircle, Download,
-  ChevronDown, ChevronUp, Loader2, Plus, Edit3, Copy,
+  ChevronDown, ChevronUp, Loader2, Plus, Edit3, Copy, Archive, ArchiveRestore,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ export default function CompetitionsPage() {
   const [selectedRegIds, setSelectedRegIds] = useState<Set<number>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editComp, setEditComp] = useState<any | null>(null);
+  const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
 
   const utils = trpc.useUtils();
 
@@ -48,6 +49,21 @@ export default function CompetitionsPage() {
       utils.competitions.list.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
+  });
+
+  const archiveMutation = trpc.competitions.archive.useMutation({
+    onSuccess: (_data, variables) => {
+      toast.success(variables.archived ? "比赛已归档" : "比赛已取消归档");
+      utils.competitions.list.invalidate();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const archivedCount = (competitions || []).filter(c => c.archived === 1).length;
+  const filteredCompetitions = (competitions || []).filter(c => {
+    if (archiveFilter === "active") return c.archived !== 1;
+    if (archiveFilter === "archived") return c.archived === 1;
+    return true;
   });
 
   const filteredRegs = (registrations || []).filter(r =>
@@ -134,6 +150,27 @@ export default function CompetitionsPage() {
         </div>
       </div>
 
+      {/* Archive Filter Tabs */}
+      <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1 w-fit">
+        {([
+          { key: "active" as const, label: "活跃" },
+          { key: "archived" as const, label: `已归档${archivedCount > 0 ? ` (${archivedCount})` : ""}` },
+          { key: "all" as const, label: "全部" },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setArchiveFilter(tab.key)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              archiveFilter === tab.key
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard title="总比赛数" value={stats?.totalCompetitions ?? 0} icon={<Trophy className="w-5 h-5" />} accentColor="#F0B90B" />
@@ -144,7 +181,7 @@ export default function CompetitionsPage() {
 
       {/* Competition Cards */}
       <div className="space-y-3">
-        {(competitions || []).map((comp) => {
+        {filteredCompetitions.map((comp) => {
           const typeConfig = COMP_TYPE_CONFIG[comp.competitionType as CompetitionType];
           const isExpanded = expandedCompId === comp.id;
 
@@ -175,6 +212,9 @@ export default function CompetitionsPage() {
                       <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                         {comp.title}
                         <StatusBadge status={comp.status} pulse={comp.status === "live"} />
+                        {comp.archived === 1 && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#6B7280]/15 text-[#6B7280]">已归档</span>
+                        )}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {typeConfig?.label || comp.competitionType} · {comp.symbol} · 奖金池 ${comp.prizePool.toLocaleString()}
@@ -197,6 +237,14 @@ export default function CompetitionsPage() {
                       title="复制比赛"
                     >
                       <Copy className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); archiveMutation.mutate({ id: comp.id, archived: comp.archived !== 1 }); }}
+                      disabled={archiveMutation.isPending}
+                      className="p-1.5 rounded-md hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      title={comp.archived === 1 ? "取消归档" : "归档"}
+                    >
+                      {comp.archived === 1 ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                     </button>
                     <div className="text-right hidden sm:block">
                       <p className="text-xs text-muted-foreground">报名</p>
@@ -228,6 +276,8 @@ export default function CompetitionsPage() {
                   <CompetitionStatusControl
                     competitionId={comp.id}
                     currentStatus={comp.status}
+                    archived={comp.archived === 1}
+                    onArchive={(archived) => archiveMutation.mutate({ id: comp.id, archived })}
                   />
                 </div>
               </div>
@@ -384,9 +434,9 @@ export default function CompetitionsPage() {
           );
         })}
 
-        {(competitions || []).length === 0 && (
+        {filteredCompetitions.length === 0 && (
           <div className="text-center py-16 text-sm text-muted-foreground">
-            暂无比赛数据，点击上方按钮创建第一场比赛
+            {archiveFilter === "archived" ? "暂无已归档的比赛" : archiveFilter === "all" ? "暂无比赛数据" : "暂无比赛数据，点击上方按钮创建第一场比赛"}
           </div>
         )}
       </div>
