@@ -299,7 +299,122 @@ export async function unbanArenaUser(arenaAccountId: number) {
   return true;
 }
 
-// ─── Competitions ───────────────────────────────────────────────────────────
+// ─── Seasons (Direct DB Write) ──────────────────────────────────────────────
+
+export async function createSeasonDirect(input: {
+  name: string;
+  slug: string;
+  startDate: number;
+  endDate: number;
+  pointsDecayFactor?: number;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const now = Date.now();
+  const result = await db.insert(seasons).values({
+    name: input.name,
+    slug: input.slug,
+    status: "active",
+    startDate: input.startDate,
+    endDate: input.endDate,
+    pointsDecayFactor: input.pointsDecayFactor ?? 0.8,
+    createdAt: now,
+  });
+  return Number(result[0].insertId);
+}
+
+// ─── Competitions (Direct DB Write) ─────────────────────────────────────────
+
+export async function createCompetitionDirect(input: {
+  seasonId: number;
+  title: string;
+  slug: string;
+  description?: string;
+  competitionNumber: number;
+  competitionType?: string;
+  maxParticipants?: number;
+  minParticipants?: number;
+  registrationOpenAt?: number;
+  registrationCloseAt?: number;
+  startTime: number;
+  endTime: number;
+  symbol?: string;
+  startingCapital?: number;
+  maxTradesPerMatch?: number;
+  closeOnlySeconds?: number;
+  feeRate?: number;
+  prizePool?: number;
+  requireMinSeasonPoints?: number;
+  requireMinTier?: string;
+  inviteOnly?: boolean;
+  createdBy?: number;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const now = Date.now();
+  // Explicitly set all fields to avoid Drizzle generating `default` keyword
+  // which causes issues with mysql2 prepared statements
+  const result = await db.insert(competitions).values({
+    seasonId: input.seasonId,
+    title: input.title,
+    slug: input.slug,
+    description: input.description ?? null,
+    competitionNumber: input.competitionNumber,
+    competitionType: input.competitionType ?? "regular",
+    status: "draft",
+    matchId: null,
+    maxParticipants: input.maxParticipants ?? 50,
+    minParticipants: input.minParticipants ?? 5,
+    registrationOpenAt: input.registrationOpenAt ?? null,
+    registrationCloseAt: input.registrationCloseAt ?? null,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    symbol: input.symbol ?? "SOLUSDT",
+    startingCapital: input.startingCapital ?? 5000,
+    maxTradesPerMatch: input.maxTradesPerMatch ?? 40,
+    closeOnlySeconds: input.closeOnlySeconds ?? 1800,
+    feeRate: input.feeRate ?? 0.0005,
+    prizePool: input.prizePool ?? 500,
+    prizeTableJson: null,
+    pointsTableJson: null,
+    requireMinSeasonPoints: input.requireMinSeasonPoints ?? 0,
+    requireMinTier: input.requireMinTier ?? null,
+    inviteOnly: input.inviteOnly ? 1 : 0,
+    createdBy: input.createdBy ?? null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return Number(result[0].insertId);
+}
+
+export async function updateCompetitionDirect(
+  id: number,
+  updates: Record<string, unknown>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Clean undefined values → null, and handle inviteOnly boolean → int
+  const cleanUpdates: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(updates)) {
+    if (val === undefined) continue;
+    if (key === "inviteOnly") {
+      cleanUpdates[key] = val ? 1 : 0;
+    } else {
+      cleanUpdates[key] = val;
+    }
+  }
+  cleanUpdates.updatedAt = Date.now();
+
+  await db
+    .update(competitions)
+    .set(cleanUpdates)
+    .where(eq(competitions.id, id));
+}
+
+// ─── Competitions (Read) ────────────────────────────────────────────────────
 
 export async function getCompetitions() {
   const db = await getDb();

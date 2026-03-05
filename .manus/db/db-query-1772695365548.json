@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO `competitions` (`id`, `seasonId`, `title`, `slug`, `description`, `competitionNumber`, `competitionType`, `status`, `matchId`, `maxParticipants`, `minParticipants`, `registrationOpenAt`, `registrationCloseAt`, `startTime`, `endTime`, `symbol`, `startingCapital`, `maxTradesPerMatch`, `closeOnlySeconds`, `feeRate`, `prizePool`, `prizeTableJson`, `pointsTableJson`, `requireMinSeasonPoints`, `requireMinTier`, `inviteOnly`, `createdBy`, `createdAt`, `updatedAt`) VALUES (default, 1, 'Week 1 Regular', 'week-1-regular-test2', default, 1, 'regular', default, default, 50, 5, 1772781360000, 1772867760000, 1773036960000, 1773123360000, 'SOLUSDT', 5000, 40, 1800, 0.0005, 500, default, default, 0, default, 0, 30001, 1772695039705, 1772695039705);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mWBJwMymT3uxJ8c.a334321e985d --database 6Yq9eJsfZbyndNatnSjnyG --execute INSERT INTO `competitions` (`id`, `seasonId`, `title`, `slug`, `description`, `competitionNumber`, `competitionType`, `status`, `matchId`, `maxParticipants`, `minParticipants`, `registrationOpenAt`, `registrationCloseAt`, `startTime`, `endTime`, `symbol`, `startingCapital`, `maxTradesPerMatch`, `closeOnlySeconds`, `feeRate`, `prizePool`, `prizeTableJson`, `pointsTableJson`, `requireMinSeasonPoints`, `requireMinTier`, `inviteOnly`, `createdBy`, `createdAt`, `updatedAt`) VALUES (default, 1, 'Week 1 Regular', 'week-1-regular-test2', default, 1, 'regular', default, default, 50, 5, 1772781360000, 1772867760000, 1773036960000, 1773123360000, 'SOLUSDT', 5000, 40, 1800, 0.0005, 500, default, default, 0, default, 0, 30001, 1772695039705, 1772695039705);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1539
+}

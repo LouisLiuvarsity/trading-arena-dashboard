@@ -31,3 +31,8 @@
 
 ## Phase 6: 测试
 - [x] 32 个 vitest 测试全部通过（权限控制 + API 功能 + 输入验证）
+
+## Bug Fixes
+- [x] 修复比赛创建失败：改为直接写入数据库，显式设置所有字段值避免 Drizzle default 关键字问题
+- [x] 手动创建 admin_logs 和 chat_moderation 表（修复迁移失败问题）
+- [x] 37 个 vitest 测试全部通过

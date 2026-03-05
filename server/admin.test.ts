@@ -335,4 +335,81 @@ describe("Input validation", () => {
       caller.stats.topTraders({ limit: 100 })
     ).rejects.toThrow();
   });
+
+  it("rejects competition creation with missing required fields", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.competitions.create({
+        seasonId: 1,
+        title: "", // empty title should fail
+        slug: "test",
+        competitionNumber: 1,
+        startTime: Date.now(),
+        endTime: Date.now() + 86400000,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects competition creation with invalid competitionType", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.competitions.create({
+        seasonId: 1,
+        title: "Test",
+        slug: "test",
+        competitionNumber: 1,
+        competitionType: "invalid_type" as any,
+        startTime: Date.now(),
+        endTime: Date.now() + 86400000,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects season creation with missing required fields", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.seasons.create({
+        name: "", // empty name should fail
+        slug: "test",
+        startDate: Date.now(),
+        endDate: Date.now() + 86400000,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects non-admin from creating competitions", async () => {
+    const ctx = createNonAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.competitions.create({
+        seasonId: 1,
+        title: "Test",
+        slug: "test",
+        competitionNumber: 1,
+        startTime: Date.now(),
+        endTime: Date.now() + 86400000,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects non-admin from creating seasons", async () => {
+    const ctx = createNonAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.seasons.create({
+        name: "Test Season",
+        slug: "test",
+        startDate: Date.now(),
+        endDate: Date.now() + 86400000,
+      })
+    ).rejects.toThrow();
+  });
 });

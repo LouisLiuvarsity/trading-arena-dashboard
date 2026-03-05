@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO competitions (id, seasonId, title, slug, competitionNumber, startTime, endTime, createdAt, updatedAt) VALUES (DEFAULT, 999, 'test', 'test-slug-xyz', 1, 1772781360000, 1772867760000, 1772695039705, 1772695039705);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mWBJwMymT3uxJ8c.a334321e985d --database 6Yq9eJsfZbyndNatnSjnyG --execute INSERT INTO competitions (id, seasonId, title, slug, competitionNumber, startTime, endTime, createdAt, updatedAt) VALUES (DEFAULT, 999, 'test', 'test-slug-xyz', 1, 1772781360000, 1772867760000, 1772695039705, 1772695039705);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1530
+}

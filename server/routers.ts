@@ -12,6 +12,7 @@ import {
   createAdminLog, getAdminLogs,
   getAllArenaUsersForExport, getAllCompetitionsForExport, getAllAdminLogsForExport,
   getSeasons,
+  createSeasonDirect, createCompetitionDirect, updateCompetitionDirect,
 } from "./db";
 import * as arenaClient from "./arenaClient";
 
@@ -38,17 +39,17 @@ export const appRouter = router({
         endDate: z.number().positive(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const result = await arenaClient.createSeason(input);
+        const id = await createSeasonDirect(input);
         await createAdminLog({
           adminUserId: ctx.user.id,
           adminName: ctx.user.name || "Admin",
           action: "season_create",
           targetType: "season",
-          targetId: String(result.id),
+          targetId: String(id),
           description: `创建赛季「${input.name}」`,
           metadata: JSON.stringify(input),
         });
-        return result;
+        return { id };
       }),
   }),
 
@@ -162,17 +163,20 @@ export const appRouter = router({
         inviteOnly: z.boolean().default(false),
       }))
       .mutation(async ({ input, ctx }) => {
-        const result = await arenaClient.createCompetition(input);
+        const id = await createCompetitionDirect({
+          ...input,
+          createdBy: ctx.user.id,
+        });
         await createAdminLog({
           adminUserId: ctx.user.id,
           adminName: ctx.user.name || "Admin",
           action: "competition_create",
           targetType: "competition",
-          targetId: String(result.id),
+          targetId: String(id),
           description: `创建比赛「${input.title}」`,
           metadata: JSON.stringify({ title: input.title, slug: input.slug, seasonId: input.seasonId }),
         });
-        return result;
+        return { id };
       }),
 
     update: adminProcedure
@@ -201,7 +205,7 @@ export const appRouter = router({
         }),
       }))
       .mutation(async ({ input, ctx }) => {
-        const result = await arenaClient.updateCompetition(input.id, input.data);
+        await updateCompetitionDirect(input.id, input.data);
         await createAdminLog({
           adminUserId: ctx.user.id,
           adminName: ctx.user.name || "Admin",
@@ -211,7 +215,7 @@ export const appRouter = router({
           description: `更新比赛 #${input.id}`,
           metadata: JSON.stringify(input.data),
         });
-        return result;
+        return { ok: true };
       }),
 
     transition: adminProcedure
