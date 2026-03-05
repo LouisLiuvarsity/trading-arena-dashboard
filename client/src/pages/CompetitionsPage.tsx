@@ -56,6 +56,7 @@ export default function CompetitionsPage() {
     onSuccess: (_data, variables) => {
       toast.success(variables.archived ? "比赛已归档" : "比赛已取消归档");
       utils.competitions.list.invalidate();
+      utils.seasons.list.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -64,6 +65,7 @@ export default function CompetitionsPage() {
     onSuccess: (data) => {
       toast.success(`比赛已永久删除（清除报名 ${data.registrations}、结果 ${data.matchResultRows}、交易 ${data.tradeRows}、聊天 ${data.chatRows} 条）`);
       utils.competitions.list.invalidate();
+      utils.seasons.list.invalidate();
       utils.stats.platform.invalidate();
       setConfirmDeleteId(null);
     },

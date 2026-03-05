@@ -11,7 +11,7 @@ import {
   getCountryDistribution, getTopTraders, getInstitutionLeaderboard, getRegistrationTrend,
   createAdminLog, getAdminLogs,
   getAllArenaUsersForExport, getAllCompetitionsForExport, getAllAdminLogsForExport,
-  getSeasons,
+  getSeasons, getSeasonById, getCompetitionById, getCompetitionsBySeasonId,
   createSeasonDirect, createCompetitionDirect, updateCompetitionDirect,
   archiveCompetition, archiveSeason,
   deleteCompetitionCascade, deleteSeasonCascade,
@@ -74,6 +74,18 @@ export const appRouter = router({
     delete: adminProcedure
       .input(z.object({ id: z.number().positive() }))
       .mutation(async ({ input, ctx }) => {
+        // Validate: season must be archived
+        const season = await getSeasonById(input.id);
+        if (!season) throw new Error("赛季不存在");
+        if (season.archived !== 1) throw new Error("赛季必须先归档才能删除");
+
+        // Validate: all competitions under this season must be archived
+        const comps = await getCompetitionsBySeasonId(input.id);
+        const unarchivedComps = comps.filter(c => c.archived !== 1);
+        if (unarchivedComps.length > 0) {
+          throw new Error(`该赛季下还有 ${unarchivedComps.length} 场比赛未归档，请先归档所有比赛后再删除赛季`);
+        }
+
         const stats = await deleteSeasonCascade(input.id);
         await createAdminLog({
           adminUserId: ctx.user.id,
@@ -308,6 +320,11 @@ export const appRouter = router({
     delete: adminProcedure
       .input(z.object({ id: z.number().positive() }))
       .mutation(async ({ input, ctx }) => {
+        // Validate: competition must be archived
+        const comp = await getCompetitionById(input.id);
+        if (!comp) throw new Error("比赛不存在");
+        if (comp.archived !== 1) throw new Error("比赛必须先归档才能删除");
+
         const stats = await deleteCompetitionCascade(input.id);
         await createAdminLog({
           adminUserId: ctx.user.id,

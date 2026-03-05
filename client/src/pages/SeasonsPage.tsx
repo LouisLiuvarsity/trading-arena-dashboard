@@ -40,6 +40,7 @@ export default function SeasonsPage() {
     onSuccess: (_data, variables) => {
       toast.success(variables.archived ? "赛季已归档" : "赛季已取消归档");
       utils.seasons.list.invalidate();
+      utils.competitions.list.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -48,6 +49,8 @@ export default function SeasonsPage() {
     onSuccess: (data) => {
       toast.success(`赛季已永久删除（级联删除 ${data.competitionsDeleted} 场比赛）`);
       utils.seasons.list.invalidate();
+      utils.competitions.list.invalidate();
+      utils.stats.platform.invalidate();
       setConfirmDeleteId(null);
     },
     onError: (err: any) => { toast.error(err.message); setConfirmDeleteId(null); },
@@ -276,47 +279,58 @@ export default function SeasonsPage() {
       </div>
 
       {/* Delete Confirmation Dialog */}
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#F6465D]/10 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-[#F6465D]" />
+      {confirmDeleteId && (() => {
+        const targetSeason = seasons?.find(s => s.id === confirmDeleteId);
+        const hasUnarchivedComps = (targetSeason?.unarchivedCompCount ?? 0) > 0;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#F6465D]/10 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-[#F6465D]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">确认永久删除</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    赛季「{targetSeason?.name}」
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">确认永久删除</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  赛季「{seasons?.find(s => s.id === confirmDeleteId)?.name}」
-                </p>
+              {hasUnarchivedComps && (
+                <div className="p-3 rounded-lg bg-[#F0B90B]/10 border border-[#F0B90B]/30 text-xs text-foreground space-y-1">
+                  <p className="font-semibold text-[#F0B90B]">无法删除</p>
+                  <p>该赛季下还有 <span className="font-bold">{targetSeason?.unarchivedCompCount}</span> 场比赛未归档。</p>
+                  <p className="text-muted-foreground">请先在「比赛管理」中归档所有比赛后再删除赛季。</p>
+                </div>
+              )}
+              <div className="p-3 rounded-lg bg-[#F6465D]/5 border border-[#F6465D]/20 text-xs text-foreground space-y-1">
+                <p>此操作将永久删除以下所有数据且不可恢复：</p>
+                <ul className="list-disc list-inside text-muted-foreground">
+                  <li>赛季本身</li>
+                  <li>该赛季下的所有比赛（{targetSeason?.competitionCount ?? 0} 场）及其配置</li>
+                  <li>所有比赛的报名记录、结果、交易记录、聊天消息</li>
+                </ul>
               </div>
-            </div>
-            <div className="p-3 rounded-lg bg-[#F6465D]/5 border border-[#F6465D]/20 text-xs text-foreground space-y-1">
-              <p>此操作将永久删除以下所有数据且不可恢复：</p>
-              <ul className="list-disc list-inside text-muted-foreground">
-                <li>赛季本身</li>
-                <li>该赛季下的所有比赛及其配置</li>
-                <li>所有比赛的报名记录、结果、交易记录、聊天消息</li>
-              </ul>
-            </div>
-            <div className="flex items-center gap-3 justify-end">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 rounded-lg bg-secondary text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate({ id: confirmDeleteId })}
-                disabled={deleteMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F6465D] text-white text-sm font-semibold hover:bg-[#F6465D]/80 transition-colors disabled:opacity-50"
-              >
-                {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                确认删除
-              </button>
+              <div className="flex items-center gap-3 justify-end">
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="px-4 py-2 rounded-lg bg-secondary text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => deleteMutation.mutate({ id: confirmDeleteId })}
+                  disabled={deleteMutation.isPending || hasUnarchivedComps}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F6465D] text-white text-sm font-semibold hover:bg-[#F6465D]/80 transition-colors disabled:opacity-50"
+                >
+                  {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  确认删除
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

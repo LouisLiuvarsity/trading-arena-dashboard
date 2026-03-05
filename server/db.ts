@@ -93,6 +93,7 @@ export async function getSeasons() {
       seasonId: competitions.seasonId,
       total: count(),
       completed: sql<number>`SUM(CASE WHEN ${competitions.status} = 'completed' THEN 1 ELSE 0 END)`,
+      unarchived: sql<number>`SUM(CASE WHEN ${competitions.archived} = 0 THEN 1 ELSE 0 END)`,
     })
     .from(competitions)
     .groupBy(competitions.seasonId);
@@ -103,7 +104,28 @@ export async function getSeasons() {
     ...s,
     competitionCount: countMap.get(s.id)?.total ?? 0,
     completedCount: countMap.get(s.id)?.completed ?? 0,
+    unarchivedCompCount: countMap.get(s.id)?.unarchived ?? 0,
   }));
+}
+
+export async function getSeasonById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(seasons).where(eq(seasons.id, id)).limit(1);
+  return row ?? null;
+}
+
+export async function getCompetitionById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(competitions).where(eq(competitions.id, id)).limit(1);
+  return row ?? null;
+}
+
+export async function getCompetitionsBySeasonId(seasonId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: competitions.id, archived: competitions.archived }).from(competitions).where(eq(competitions.seasonId, seasonId));
 }
 
 // ─── Arena Users ────────────────────────────────────────────────────────────
