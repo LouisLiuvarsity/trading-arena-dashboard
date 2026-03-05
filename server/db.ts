@@ -66,6 +66,45 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+// ─── Seasons ────────────────────────────────────────────────────────────────
+
+export async function getSeasons() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .select({
+      id: seasons.id,
+      name: seasons.name,
+      slug: seasons.slug,
+      status: seasons.status,
+      startDate: seasons.startDate,
+      endDate: seasons.endDate,
+      pointsDecayFactor: seasons.pointsDecayFactor,
+      createdAt: seasons.createdAt,
+    })
+    .from(seasons)
+    .orderBy(desc(seasons.startDate));
+
+  // Enrich with competition counts
+  const compCounts = await db
+    .select({
+      seasonId: competitions.seasonId,
+      total: count(),
+      completed: sql<number>`SUM(CASE WHEN ${competitions.status} = 'completed' THEN 1 ELSE 0 END)`,
+    })
+    .from(competitions)
+    .groupBy(competitions.seasonId);
+
+  const countMap = new Map(compCounts.map(c => [c.seasonId, c]));
+
+  return rows.map(s => ({
+    ...s,
+    competitionCount: countMap.get(s.id)?.total ?? 0,
+    completedCount: countMap.get(s.id)?.completed ?? 0,
+  }));
+}
+
 // ─── Arena Users ────────────────────────────────────────────────────────────
 
 export async function getArenaUsers(opts: {

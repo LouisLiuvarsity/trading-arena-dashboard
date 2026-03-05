@@ -46,6 +46,16 @@ export const COMP_TYPE_CONFIG: Record<CompetitionType, { label: string; color: s
   practice: { label: "练习赛", color: "#848E9C" },
 };
 
+/** Valid competition status transitions (state machine) */
+export const VALID_TRANSITIONS: Record<string, CompetitionStatus[]> = {
+  draft: ["announced", "cancelled"],
+  announced: ["registration_open", "cancelled"],
+  registration_open: ["registration_closed", "cancelled"],
+  registration_closed: ["live", "cancelled"],
+  live: ["settling"],
+  settling: ["completed"],
+};
+
 /** Compute tier from season points */
 export function getTierFromPoints(points: number): RankTier {
   if (points >= 2000) return "diamond";

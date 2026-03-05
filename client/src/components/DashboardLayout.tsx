@@ -7,7 +7,7 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Users, Trophy, MessageSquare, BarChart3,
-  ChevronLeft, ChevronRight, Shield, Menu, X, FileText,
+  ChevronLeft, ChevronRight, Shield, Menu, X, FileText, Calendar,
 } from "lucide-react";
 
 const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663325188422/6Yq9eJsfZbyndNatnSjnyG/sidebar-logo-2N3YSfimiB7wqNyCjeh5Na.webp";
@@ -21,6 +21,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: "/", label: "总览", icon: <LayoutDashboard className="w-5 h-5" /> },
   { path: "/users", label: "用户管理", icon: <Users className="w-5 h-5" /> },
+  { path: "/seasons", label: "赛季管理", icon: <Calendar className="w-5 h-5" /> },
   { path: "/competitions", label: "比赛管理", icon: <Trophy className="w-5 h-5" /> },
   { path: "/chat", label: "聊天管理", icon: <MessageSquare className="w-5 h-5" /> },
   { path: "/stats", label: "统计分析", icon: <BarChart3 className="w-5 h-5" /> },

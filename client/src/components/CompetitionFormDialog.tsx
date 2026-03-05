@@ -1,0 +1,493 @@
+/**
+ * CompetitionFormDialog — Create or edit a competition
+ * Reusable dialog with all fields from createCompetitionSchema
+ */
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Loader2 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import type { CompetitionType } from "@/lib/constants";
+
+interface CompetitionFormData {
+  seasonId: number;
+  title: string;
+  slug: string;
+  description: string;
+  competitionNumber: number;
+  competitionType: CompetitionType;
+  maxParticipants: number;
+  minParticipants: number;
+  registrationOpenAt: string;
+  registrationCloseAt: string;
+  startTime: string;
+  endTime: string;
+  symbol: string;
+  startingCapital: number;
+  maxTradesPerMatch: number;
+  closeOnlySeconds: number;
+  feeRate: number;
+  prizePool: number;
+  requireMinSeasonPoints: number;
+  requireMinTier: string;
+  inviteOnly: boolean;
+}
+
+const defaultForm: CompetitionFormData = {
+  seasonId: 0,
+  title: "",
+  slug: "",
+  description: "",
+  competitionNumber: 1,
+  competitionType: "regular",
+  maxParticipants: 50,
+  minParticipants: 5,
+  registrationOpenAt: "",
+  registrationCloseAt: "",
+  startTime: "",
+  endTime: "",
+  symbol: "SOLUSDT",
+  startingCapital: 5000,
+  maxTradesPerMatch: 40,
+  closeOnlySeconds: 1800,
+  feeRate: 0.0005,
+  prizePool: 500,
+  requireMinSeasonPoints: 0,
+  requireMinTier: "",
+  inviteOnly: false,
+};
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  /** If provided, form is in edit mode */
+  editData?: {
+    id: number;
+    seasonId: number;
+    title: string;
+    slug: string;
+    description?: string | null;
+    competitionNumber: number;
+    competitionType: string;
+    maxParticipants: number;
+    startTime: number;
+    endTime: number;
+    registrationOpenAt?: number | null;
+    registrationCloseAt?: number | null;
+    symbol: string;
+    startingCapital: number;
+    prizePool: number;
+  };
+}
+
+function tsToDatetimeLocal(ts: number | null | undefined): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export default function CompetitionFormDialog({ open, onClose, editData }: Props) {
+  const [form, setForm] = useState<CompetitionFormData>(defaultForm);
+  const utils = trpc.useUtils();
+  const { data: seasons } = trpc.seasons.list.useQuery();
+
+  const isEdit = !!editData;
+
+  useEffect(() => {
+    if (editData) {
+      setForm({
+        ...defaultForm,
+        seasonId: editData.seasonId,
+        title: editData.title,
+        slug: editData.slug,
+        description: editData.description || "",
+        competitionNumber: editData.competitionNumber,
+        competitionType: editData.competitionType as CompetitionType,
+        maxParticipants: editData.maxParticipants,
+        startTime: tsToDatetimeLocal(editData.startTime),
+        endTime: tsToDatetimeLocal(editData.endTime),
+        registrationOpenAt: tsToDatetimeLocal(editData.registrationOpenAt),
+        registrationCloseAt: tsToDatetimeLocal(editData.registrationCloseAt),
+        symbol: editData.symbol,
+        startingCapital: editData.startingCapital,
+        prizePool: editData.prizePool,
+      });
+    } else {
+      setForm(defaultForm);
+    }
+  }, [editData, open]);
+
+  const createMutation = trpc.competitions.create.useMutation({
+    onSuccess: () => {
+      toast.success("比赛创建成功");
+      utils.competitions.list.invalidate();
+      onClose();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const updateMutation = trpc.competitions.update.useMutation({
+    onSuccess: () => {
+      toast.success("比赛更新成功");
+      utils.competitions.list.invalidate();
+      onClose();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  const handleSubmit = () => {
+    if (!form.title || !form.slug || !form.startTime || !form.endTime || !form.seasonId) {
+      toast.error("请填写所有必填字段（赛季、标题、slug、开始/结束时间）");
+      return;
+    }
+
+    const toTs = (v: string) => v ? new Date(v).getTime() : undefined;
+
+    if (isEdit && editData) {
+      updateMutation.mutate({
+        id: editData.id,
+        data: {
+          title: form.title,
+          slug: form.slug,
+          description: form.description || undefined,
+          competitionType: form.competitionType,
+          maxParticipants: form.maxParticipants,
+          minParticipants: form.minParticipants,
+          registrationOpenAt: toTs(form.registrationOpenAt),
+          registrationCloseAt: toTs(form.registrationCloseAt),
+          startTime: toTs(form.startTime)!,
+          endTime: toTs(form.endTime)!,
+          symbol: form.symbol,
+          startingCapital: form.startingCapital,
+          maxTradesPerMatch: form.maxTradesPerMatch,
+          closeOnlySeconds: form.closeOnlySeconds,
+          feeRate: form.feeRate,
+          prizePool: form.prizePool,
+          requireMinSeasonPoints: form.requireMinSeasonPoints,
+          requireMinTier: form.requireMinTier || undefined,
+          inviteOnly: form.inviteOnly,
+        },
+      });
+    } else {
+      createMutation.mutate({
+        seasonId: form.seasonId,
+        title: form.title,
+        slug: form.slug,
+        description: form.description || undefined,
+        competitionNumber: form.competitionNumber,
+        competitionType: form.competitionType,
+        maxParticipants: form.maxParticipants,
+        minParticipants: form.minParticipants,
+        registrationOpenAt: toTs(form.registrationOpenAt),
+        registrationCloseAt: toTs(form.registrationCloseAt),
+        startTime: toTs(form.startTime)!,
+        endTime: toTs(form.endTime)!,
+        symbol: form.symbol,
+        startingCapital: form.startingCapital,
+        maxTradesPerMatch: form.maxTradesPerMatch,
+        closeOnlySeconds: form.closeOnlySeconds,
+        feeRate: form.feeRate,
+        prizePool: form.prizePool,
+        requireMinSeasonPoints: form.requireMinSeasonPoints,
+        requireMinTier: form.requireMinTier || undefined,
+        inviteOnly: form.inviteOnly,
+      });
+    }
+  };
+
+  const autoSlug = (title: string) => {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 64);
+  };
+
+  const set = <K extends keyof CompetitionFormData>(key: K, val: CompetitionFormData[K]) => {
+    setForm(f => ({ ...f, [key]: val }));
+  };
+
+  if (!open) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center overflow-y-auto py-8"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.97 }}
+          className="bg-card border border-border rounded-xl w-full max-w-2xl mx-4 shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between p-5 border-b border-border">
+            <h3 className="font-display text-lg font-bold text-foreground">
+              {isEdit ? "编辑比赛" : "创建新比赛"}
+            </h3>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Form */}
+          <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            {/* Basic Info */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">基本信息</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">所属赛季 *</label>
+                  <select
+                    value={form.seasonId}
+                    onChange={(e) => set("seasonId", Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  >
+                    <option value={0}>选择赛季...</option>
+                    {(seasons || []).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">比赛类型</label>
+                  <select
+                    value={form.competitionType}
+                    onChange={(e) => set("competitionType", e.target.value as CompetitionType)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  >
+                    <option value="regular">常规赛</option>
+                    <option value="grand_final">总决赛</option>
+                    <option value="special">特别赛</option>
+                    <option value="practice">练习赛</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">标题 *</label>
+                  <input
+                    type="text"
+                    value={form.title}
+                    onChange={(e) => {
+                      set("title", e.target.value);
+                      if (!isEdit) set("slug", autoSlug(e.target.value));
+                    }}
+                    placeholder="Week 1 Regular"
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Slug *</label>
+                  <input
+                    type="text"
+                    value={form.slug}
+                    onChange={(e) => set("slug", e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">描述</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => set("description", e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B] resize-none"
+                />
+              </div>
+              {!isEdit && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">比赛编号</label>
+                    <input
+                      type="number"
+                      value={form.competitionNumber}
+                      onChange={(e) => set("competitionNumber", Number(e.target.value))}
+                      min={1}
+                      className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Time Settings */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">时间设置</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">报名开放时间</label>
+                  <input type="datetime-local" value={form.registrationOpenAt}
+                    onChange={(e) => set("registrationOpenAt", e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">报名截止时间</label>
+                  <input type="datetime-local" value={form.registrationCloseAt}
+                    onChange={(e) => set("registrationCloseAt", e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">比赛开始时间 *</label>
+                  <input type="datetime-local" value={form.startTime}
+                    onChange={(e) => set("startTime", e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">比赛结束时间 *</label>
+                  <input type="datetime-local" value={form.endTime}
+                    onChange={(e) => set("endTime", e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Participation Settings */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">参赛设置</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">最大参与者</label>
+                  <input type="number" value={form.maxParticipants}
+                    onChange={(e) => set("maxParticipants", Number(e.target.value))}
+                    min={1}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">最少参与者</label>
+                  <input type="number" value={form.minParticipants}
+                    onChange={(e) => set("minParticipants", Number(e.target.value))}
+                    min={1}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">最低积分要求</label>
+                  <input type="number" value={form.requireMinSeasonPoints}
+                    onChange={(e) => set("requireMinSeasonPoints", Number(e.target.value))}
+                    min={0}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">最低段位要求</label>
+                  <select
+                    value={form.requireMinTier}
+                    onChange={(e) => set("requireMinTier", e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  >
+                    <option value="">无要求</option>
+                    <option value="bronze">Bronze</option>
+                    <option value="silver">Silver</option>
+                    <option value="gold">Gold</option>
+                    <option value="platinum">Platinum</option>
+                    <option value="diamond">Diamond</option>
+                  </select>
+                </div>
+                <div className="flex items-end pb-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.inviteOnly}
+                      onChange={(e) => set("inviteOnly", e.target.checked)}
+                      className="rounded border-border"
+                    />
+                    <span className="text-sm text-foreground">仅限邀请</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Trading Settings */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">交易设置</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">交易对</label>
+                  <input type="text" value={form.symbol}
+                    onChange={(e) => set("symbol", e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">初始资金</label>
+                  <input type="number" value={form.startingCapital}
+                    onChange={(e) => set("startingCapital", Number(e.target.value))}
+                    min={1}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">最大交易次数</label>
+                  <input type="number" value={form.maxTradesPerMatch}
+                    onChange={(e) => set("maxTradesPerMatch", Number(e.target.value))}
+                    min={1}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">平仓期 (秒)</label>
+                  <input type="number" value={form.closeOnlySeconds}
+                    onChange={(e) => set("closeOnlySeconds", Number(e.target.value))}
+                    min={0}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">手续费率</label>
+                  <input type="number" value={form.feeRate} step="0.0001"
+                    onChange={(e) => set("feeRate", Number(e.target.value))}
+                    min={0}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">奖金池 (USDT)</label>
+                  <input type="number" value={form.prizePool}
+                    onChange={(e) => set("prizePool", Number(e.target.value))}
+                    min={0}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-3 p-5 border-t border-border">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-secondary text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isPending}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-semibold hover:bg-[#F0B90B]/90 transition-colors disabled:opacity-50"
+            >
+              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isEdit ? "保存修改" : "确认创建"}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}

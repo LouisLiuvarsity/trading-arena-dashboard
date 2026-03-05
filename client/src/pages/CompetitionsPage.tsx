@@ -1,23 +1,27 @@
 /**
- * CompetitionsPage — Competition management with registration approval
+ * CompetitionsPage — Competition management with CRUD, status transitions, and registration approval
  */
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, DollarSign, Clock, CheckCircle, XCircle, Download,
-  ChevronDown, ChevronUp, Loader2,
+  ChevronDown, ChevronUp, Loader2, Plus, Edit3, Copy,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import StatusBadge from "@/components/StatusBadge";
 import TierBadge from "@/components/TierBadge";
 import StatCard from "@/components/StatCard";
+import CompetitionFormDialog from "@/components/CompetitionFormDialog";
+import CompetitionStatusControl from "@/components/CompetitionStatusControl";
 import { COMP_TYPE_CONFIG, formatDate, downloadCSV, getTierFromPoints, type CompetitionType } from "@/lib/constants";
 
 export default function CompetitionsPage() {
   const [expandedCompId, setExpandedCompId] = useState<number | null>(null);
   const [regStatusFilter, setRegStatusFilter] = useState("all");
   const [selectedRegIds, setSelectedRegIds] = useState<Set<number>>(new Set());
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editComp, setEditComp] = useState<any | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -33,6 +37,14 @@ export default function CompetitionsPage() {
     onSuccess: (_data, variables) => {
       toast.success(variables.status === "accepted" ? "报名已批准" : "报名已拒绝");
       utils.competitions.registrations.invalidate();
+      utils.competitions.list.invalidate();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const duplicateMutation = trpc.competitions.duplicate.useMutation({
+    onSuccess: (result) => {
+      toast.success(`比赛已复制，新比赛 ID: ${result.id}`);
       utils.competitions.list.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
@@ -102,15 +114,24 @@ export default function CompetitionsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-bold text-foreground">比赛管理</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">管理所有比赛及报名审批</p>
+          <p className="text-xs text-muted-foreground mt-0.5">管理所有比赛、状态流转及报名审批</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          导出 CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-semibold hover:bg-[#F0B90B]/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            创建比赛
+          </button>
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            导出 CSV
+          </button>
+        </div>
       </div>
 
       {/* Quick Stats */}
@@ -134,18 +155,18 @@ export default function CompetitionsPage() {
               className="rounded-xl border border-border bg-card overflow-hidden"
             >
               {/* Competition Header */}
-              <div
-                className="p-4 lg:p-5 cursor-pointer hover:bg-secondary/20 transition-colors"
-                onClick={() => {
-                  setExpandedCompId(isExpanded ? null : comp.id);
-                  setSelectedRegIds(new Set());
-                  setRegStatusFilter("all");
-                }}
-              >
+              <div className="p-4 lg:p-5">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                  <div
+                    className="flex items-center gap-3 cursor-pointer flex-1"
+                    onClick={() => {
+                      setExpandedCompId(isExpanded ? null : comp.id);
+                      setSelectedRegIds(new Set());
+                      setRegStatusFilter("all");
+                    }}
+                  >
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                       style={{ background: `${typeConfig?.color || "#848E9C"}15`, color: typeConfig?.color || "#848E9C" }}
                     >
                       <Trophy className="w-5 h-5" />
@@ -160,7 +181,23 @@ export default function CompetitionsPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    {/* Action buttons */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditComp(comp); }}
+                      className="p-1.5 rounded-md hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors"
+                      title="编辑"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); duplicateMutation.mutate({ id: comp.id }); }}
+                      disabled={duplicateMutation.isPending}
+                      className="p-1.5 rounded-md hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      title="复制比赛"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
                     <div className="text-right hidden sm:block">
                       <p className="text-xs text-muted-foreground">报名</p>
                       <p className="text-sm font-mono font-semibold text-foreground">
@@ -170,11 +207,28 @@ export default function CompetitionsPage() {
                     <div className="text-right hidden sm:block">
                       <p className="text-xs text-muted-foreground">待审核</p>
                       <p className="text-sm font-mono font-semibold text-[#F0B90B]">
-                        {comp.registeredCount - comp.acceptedCount}
+                        {comp.pendingCount}
                       </p>
                     </div>
-                    {isExpanded ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+                    <div
+                      className="cursor-pointer p-1"
+                      onClick={() => {
+                        setExpandedCompId(isExpanded ? null : comp.id);
+                        setSelectedRegIds(new Set());
+                        setRegStatusFilter("all");
+                      }}
+                    >
+                      {isExpanded ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+                    </div>
                   </div>
+                </div>
+
+                {/* Status Transition Controls */}
+                <div className="mt-3">
+                  <CompetitionStatusControl
+                    competitionId={comp.id}
+                    currentStatus={comp.status}
+                  />
                 </div>
               </div>
 
@@ -188,6 +242,26 @@ export default function CompetitionsPage() {
                     className="border-t border-border"
                   >
                     <div className="p-4 lg:p-5 space-y-4">
+                      {/* Competition Details */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div className="p-2 rounded-lg bg-secondary/30">
+                          <span className="text-muted-foreground">开始时间</span>
+                          <p className="font-mono text-foreground mt-0.5">{formatDate(comp.startTime)}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-secondary/30">
+                          <span className="text-muted-foreground">结束时间</span>
+                          <p className="font-mono text-foreground mt-0.5">{formatDate(comp.endTime)}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-secondary/30">
+                          <span className="text-muted-foreground">初始资金</span>
+                          <p className="font-mono text-foreground mt-0.5">${comp.startingCapital.toLocaleString()}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-secondary/30">
+                          <span className="text-muted-foreground">赛季 ID</span>
+                          <p className="font-mono text-foreground mt-0.5">{comp.seasonId}</p>
+                        </div>
+                      </div>
+
                       {/* Filters & Batch Actions */}
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
@@ -312,10 +386,17 @@ export default function CompetitionsPage() {
 
         {(competitions || []).length === 0 && (
           <div className="text-center py-16 text-sm text-muted-foreground">
-            暂无比赛数据
+            暂无比赛数据，点击上方按钮创建第一场比赛
           </div>
         )}
       </div>
+
+      {/* Create/Edit Dialog */}
+      <CompetitionFormDialog
+        open={showCreateDialog || !!editComp}
+        onClose={() => { setShowCreateDialog(false); setEditComp(null); }}
+        editData={editComp || undefined}
+      />
     </div>
   );
 }

@@ -1,0 +1,212 @@
+/**
+ * SeasonsPage — Season management with create functionality
+ */
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Calendar, Plus, Trophy, Loader2, Hash,
+} from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import StatusBadge from "@/components/StatusBadge";
+import StatCard from "@/components/StatCard";
+import { formatDate } from "@/lib/constants";
+
+export default function SeasonsPage() {
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    slug: "",
+    startDate: "",
+    endDate: "",
+  });
+
+  const utils = trpc.useUtils();
+  const { data: seasons, isLoading } = trpc.seasons.list.useQuery();
+
+  const createMutation = trpc.seasons.create.useMutation({
+    onSuccess: () => {
+      toast.success("赛季创建成功");
+      utils.seasons.list.invalidate();
+      setShowCreate(false);
+      setForm({ name: "", slug: "", startDate: "", endDate: "" });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const handleCreate = () => {
+    if (!form.name || !form.slug || !form.startDate || !form.endDate) {
+      toast.error("请填写所有必填字段");
+      return;
+    }
+    createMutation.mutate({
+      name: form.name,
+      slug: form.slug,
+      startDate: new Date(form.startDate).getTime(),
+      endDate: new Date(form.endDate).getTime(),
+    });
+  };
+
+  const autoSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 32);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#F0B90B]" />
+      </div>
+    );
+  }
+
+  const activeSeasons = (seasons || []).filter(s => s.status === "active").length;
+  const totalComps = (seasons || []).reduce((s, r) => s + r.competitionCount, 0);
+
+  return (
+    <div className="space-y-4 max-w-[1400px] mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-xl font-bold text-foreground">赛季管理</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">管理所有赛季，创建新赛季</p>
+        </div>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-semibold hover:bg-[#F0B90B]/90 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          创建赛季
+        </button>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <StatCard title="总赛季数" value={(seasons || []).length} icon={<Calendar className="w-5 h-5" />} accentColor="#F0B90B" />
+        <StatCard title="进行中" value={activeSeasons} icon={<Trophy className="w-5 h-5" />} accentColor="#0ECB81" />
+        <StatCard title="总比赛数" value={totalComps} icon={<Hash className="w-5 h-5" />} accentColor="#3B82F6" delay={0.1} />
+      </div>
+
+      {/* Create Season Form */}
+      {showCreate && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          className="rounded-xl border border-border bg-card p-5 space-y-4"
+        >
+          <h3 className="text-sm font-bold text-foreground">创建新赛季</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">赛季名称 *</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => {
+                  setForm(f => ({ ...f, name: e.target.value, slug: autoSlug(e.target.value) }));
+                }}
+                placeholder="例如: Season 1"
+                className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Slug *</label>
+              <input
+                type="text"
+                value={form.slug}
+                onChange={(e) => setForm(f => ({ ...f, slug: e.target.value }))}
+                placeholder="season-1"
+                className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">开始日期 *</label>
+              <input
+                type="datetime-local"
+                value={form.startDate}
+                onChange={(e) => setForm(f => ({ ...f, startDate: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">结束日期 *</label>
+              <input
+                type="datetime-local"
+                value={form.endDate}
+                onChange={(e) => setForm(f => ({ ...f, endDate: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCreate}
+              disabled={createMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-semibold hover:bg-[#F0B90B]/90 transition-colors disabled:opacity-50"
+            >
+              {createMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              确认创建
+            </button>
+            <button
+              onClick={() => setShowCreate(false)}
+              className="px-4 py-2 rounded-lg bg-secondary text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              取消
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Season Cards */}
+      <div className="space-y-3">
+        {(seasons || []).map((season) => (
+          <motion.div
+            key={season.id}
+            layout
+            className="rounded-xl border border-border bg-card p-4 lg:p-5"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B]">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    {season.name}
+                    <StatusBadge status={season.status || "active"} />
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {season.slug} · 衰减系数 {season.pointsDecayFactor}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-muted-foreground">比赛数</p>
+                  <p className="text-sm font-mono font-semibold text-foreground">
+                    {season.completedCount}/{season.competitionCount}
+                  </p>
+                </div>
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-muted-foreground">时间</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDate(season.startDate)} ~ {formatDate(season.endDate)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+
+        {(seasons || []).length === 0 && (
+          <div className="text-center py-16 text-sm text-muted-foreground">
+            暂无赛季数据，点击上方按钮创建第一个赛季
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

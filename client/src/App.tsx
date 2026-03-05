@@ -11,6 +11,7 @@ import CompetitionsPage from "./pages/CompetitionsPage";
 import ChatPage from "./pages/ChatPage";
 import StatsPage from "./pages/StatsPage";
 import AdminLogsPage from "./pages/AdminLogsPage";
+import SeasonsPage from "./pages/SeasonsPage";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Overview} />
         <Route path="/users" component={UsersPage} />
+        <Route path="/seasons" component={SeasonsPage} />
         <Route path="/competitions" component={CompetitionsPage} />
         <Route path="/chat" component={ChatPage} />
         <Route path="/stats" component={StatsPage} />
