@@ -2,21 +2,43 @@
  * CompetitionFormDialog — Create or edit a competition
  * Reusable dialog with all fields from createCompetitionSchema
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { CompetitionType } from "@/lib/constants";
 
-/** Supported trading pairs — must stay in sync with trading-arena/shared/tradingPair.ts */
-const SUPPORTED_SYMBOLS = [
-  { symbol: "SOLUSDT", label: "SOL/USDT" },
-  { symbol: "BTCUSDT", label: "BTC/USDT" },
-  { symbol: "ETHUSDT", label: "ETH/USDT" },
-  { symbol: "BNBUSDT", label: "BNB/USDT" },
-  { symbol: "DOGEUSDT", label: "DOGE/USDT" },
-];
+interface BinanceSymbolInfo {
+  symbol: string;
+  baseAsset: string;
+  quoteAsset: string;
+}
+
+/** Fetch all Binance USDⓈ-M perpetual symbols (cached in module scope) */
+let cachedSymbols: BinanceSymbolInfo[] | null = null;
+async function fetchBinanceSymbols(): Promise<BinanceSymbolInfo[]> {
+  if (cachedSymbols) return cachedSymbols;
+  try {
+    const res = await fetch("https://fapi.binance.com/fapi/v1/exchangeInfo");
+    const data = await res.json();
+    cachedSymbols = (data.symbols as any[])
+      .filter((s: any) =>
+        s.contractType === "PERPETUAL" &&
+        s.status === "TRADING" &&
+        (s.quoteAsset === "USDT" || s.quoteAsset === "USDC")
+      )
+      .map((s: any) => ({
+        symbol: s.symbol,
+        baseAsset: s.baseAsset,
+        quoteAsset: s.quoteAsset,
+      }))
+      .sort((a: BinanceSymbolInfo, b: BinanceSymbolInfo) => a.symbol.localeCompare(b.symbol));
+    return cachedSymbols;
+  } catch {
+    return [];
+  }
+}
 
 interface CompetitionFormData {
   seasonId: number;
@@ -98,8 +120,21 @@ function tsToDatetimeLocal(ts: number | null | undefined): string {
 
 export default function CompetitionFormDialog({ open, onClose, editData }: Props) {
   const [form, setForm] = useState<CompetitionFormData>(defaultForm);
+  const [allSymbols, setAllSymbols] = useState<BinanceSymbolInfo[]>([]);
+  const [symbolSearch, setSymbolSearch] = useState("");
   const utils = trpc.useUtils();
   const { data: seasons } = trpc.seasons.list.useQuery();
+
+  // Fetch Binance symbols on mount
+  useEffect(() => {
+    fetchBinanceSymbols().then(setAllSymbols);
+  }, []);
+
+  const filteredSymbols = useMemo(() => {
+    if (!symbolSearch) return allSymbols;
+    const q = symbolSearch.toUpperCase();
+    return allSymbols.filter(s => s.symbol.includes(q) || s.baseAsset.includes(q));
+  }, [allSymbols, symbolSearch]);
 
   const isEdit = !!editData;
 
@@ -427,16 +462,48 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
             <div className="space-y-3">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">交易设置</h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">交易对</label>
-                  <select value={form.symbol}
-                    onChange={(e) => set("symbol", e.target.value)}
+                <div className="relative">
+                  <label className="block text-xs text-muted-foreground mb-1">交易对 ({allSymbols.length} 个可用)</label>
+                  <input
+                    type="text"
+                    value={symbolSearch || form.symbol}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      setSymbolSearch(val);
+                      // Auto-select if exact match
+                      if (allSymbols.some(s => s.symbol === val)) {
+                        set("symbol", val);
+                        setSymbolSearch("");
+                      }
+                    }}
+                    onFocus={() => setSymbolSearch(form.symbol)}
+                    onBlur={() => {
+                      // Delay to allow click on dropdown
+                      setTimeout(() => setSymbolSearch(""), 200);
+                    }}
+                    placeholder="搜索币对，如 BTC、ETH、SOL..."
                     className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
-                  >
-                    {SUPPORTED_SYMBOLS.map((s) => (
-                      <option key={s.symbol} value={s.symbol}>{s.label} ({s.symbol})</option>
-                    ))}
-                  </select>
+                  />
+                  {symbolSearch && filteredSymbols.length > 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg bg-secondary border border-border shadow-lg">
+                      {filteredSymbols.slice(0, 50).map((s) => (
+                        <button
+                          key={s.symbol}
+                          type="button"
+                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-[#F0B90B]/10 ${
+                            form.symbol === s.symbol ? "text-[#F0B90B]" : "text-foreground"
+                          }`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            set("symbol", s.symbol);
+                            setSymbolSearch("");
+                          }}
+                        >
+                          {s.baseAsset}/{s.quoteAsset}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">初始资金</label>
