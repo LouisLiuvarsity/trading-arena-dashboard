@@ -2,7 +2,7 @@
  * CompetitionFormDialog — Create or edit a competition
  * Reusable dialog with all fields from createCompetitionSchema
  */
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, Upload, ImageIcon } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -123,6 +123,8 @@ function tsToDatetimeLocal(ts: number | null | undefined): string {
 
 export default function CompetitionFormDialog({ open, onClose, editData }: Props) {
   const [form, setForm] = useState<CompetitionFormData>(defaultForm);
+  // Pending cover image for create mode (base64 + mime), uploaded after competition is created
+  const pendingCoverRef = useRef<{ base64: string; mimeType: string } | null>(null);
   const [allSymbols, setAllSymbols] = useState<BinanceSymbolInfo[]>([]);
   const [symbolSearch, setSymbolSearch] = useState("");
   const utils = trpc.useUtils();
@@ -163,11 +165,21 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
       });
     } else {
       setForm(defaultForm);
+      pendingCoverRef.current = null;
     }
   }, [editData, open]);
 
   const createMutation = trpc.competitions.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // If there's a pending cover image, upload it now
+      if (pendingCoverRef.current && data.id) {
+        uploadCoverMutation.mutate({
+          competitionId: data.id,
+          base64: pendingCoverRef.current.base64,
+          mimeType: pendingCoverRef.current.mimeType,
+        });
+        pendingCoverRef.current = null;
+      }
       toast.success("比赛创建成功");
       utils.competitions.list.invalidate();
       onClose();
@@ -213,7 +225,8 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
           mimeType: file.type,
         });
       } else {
-        // For create mode, convert to data URL for preview; actual upload happens after create
+        // Store base64 for upload after creation; use data URL only for local preview
+        pendingCoverRef.current = { base64, mimeType: file.type };
         set("coverImageUrl", reader.result as string);
       }
     };
@@ -257,6 +270,11 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
         },
       });
     } else {
+      // Don't send coverImageUrl if it's a data URL (base64 preview);
+      // the actual image will be uploaded via uploadCover after creation.
+      const coverUrl = form.coverImageUrl && !form.coverImageUrl.startsWith("data:")
+        ? form.coverImageUrl
+        : undefined;
       createMutation.mutate({
         seasonId: form.seasonId,
         title: form.title,
@@ -279,7 +297,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
         requireMinSeasonPoints: form.requireMinSeasonPoints,
         requireMinTier: form.requireMinTier || undefined,
         inviteOnly: form.inviteOnly,
-        coverImageUrl: form.coverImageUrl || undefined,
+        coverImageUrl: coverUrl,
       });
     }
   };
