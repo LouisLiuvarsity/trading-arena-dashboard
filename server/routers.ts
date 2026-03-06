@@ -17,6 +17,7 @@ import {
   deleteCompetitionCascade, deleteSeasonCascade,
 } from "./db";
 import * as arenaClient from "./arenaClient";
+import { storagePut } from "./storage";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   draft: ["announced", "cancelled"],
@@ -237,6 +238,7 @@ export const appRouter = router({
         requireMinSeasonPoints: z.number().int().nonnegative().default(0),
         requireMinTier: z.string().optional(),
         inviteOnly: z.boolean().default(false),
+        coverImageUrl: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const id = await createCompetitionDirect({
@@ -278,6 +280,7 @@ export const appRouter = router({
           requireMinSeasonPoints: z.number().int().nonnegative().optional(),
           requireMinTier: z.string().optional(),
           inviteOnly: z.boolean().optional(),
+          coverImageUrl: z.string().optional(),
         }),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -333,6 +336,29 @@ export const appRouter = router({
           description: `复制比赛 #${input.id} → 新比赛 #${result.id}`,
         });
         return result;
+      }),
+
+    uploadCover: adminProcedure
+      .input(z.object({
+        competitionId: z.number().positive(),
+        base64: z.string().min(1),
+        mimeType: z.string().regex(/^image\/(jpeg|png|webp|gif)$/),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const ext = input.mimeType.split("/")[1] ?? "png";
+        const key = `competitions/covers/${input.competitionId}-${Date.now()}.${ext}`;
+        const buf = Buffer.from(input.base64, "base64");
+        const { url } = await storagePut(key, buf, input.mimeType);
+        await updateCompetitionDirect(input.competitionId, { coverImageUrl: url });
+        await createAdminLog({
+          adminUserId: ctx.user.id,
+          adminName: ctx.user.name || "Admin",
+          action: "competition_update",
+          targetType: "competition",
+          targetId: String(input.competitionId),
+          description: `上传比赛 #${input.competitionId} 封面图`,
+        });
+        return { url };
       }),
 
     archive: adminProcedure

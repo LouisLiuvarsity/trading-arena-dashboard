@@ -2,9 +2,9 @@
  * CompetitionFormDialog — Create or edit a competition
  * Reusable dialog with all fields from createCompetitionSchema
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Upload, ImageIcon } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { CompetitionType } from "@/lib/constants";
@@ -62,6 +62,7 @@ interface CompetitionFormData {
   requireMinSeasonPoints: number;
   requireMinTier: string;
   inviteOnly: boolean;
+  coverImageUrl: string;
 }
 
 const defaultForm: CompetitionFormData = {
@@ -86,6 +87,7 @@ const defaultForm: CompetitionFormData = {
   requireMinSeasonPoints: 0,
   requireMinTier: "",
   inviteOnly: false,
+  coverImageUrl: "",
 };
 
 interface Props {
@@ -108,6 +110,7 @@ interface Props {
     symbol: string;
     startingCapital: number;
     prizePool: number;
+    coverImageUrl?: string | null;
   };
 }
 
@@ -156,6 +159,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
         symbol: editData.symbol,
         startingCapital: editData.startingCapital,
         prizePool: editData.prizePool,
+        coverImageUrl: editData.coverImageUrl || "",
       });
     } else {
       setForm(defaultForm);
@@ -179,6 +183,42 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
     },
     onError: (err: any) => toast.error(err.message),
   });
+
+  const uploadCoverMutation = trpc.competitions.uploadCover.useMutation({
+    onSuccess: (data) => {
+      set("coverImageUrl", data.url);
+      toast.success("封面上传成功");
+    },
+    onError: (err: any) => toast.error(`上传失败: ${err.message}`),
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverUpload = async (file: File) => {
+    if (!file.type.match(/^image\/(jpeg|png|webp|gif)$/)) {
+      toast.error("仅支持 JPG/PNG/WebP/GIF");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("图片不能超过 5MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      if (isEdit && editData) {
+        uploadCoverMutation.mutate({
+          competitionId: editData.id,
+          base64,
+          mimeType: file.type,
+        });
+      } else {
+        // For create mode, convert to data URL for preview; actual upload happens after create
+        set("coverImageUrl", reader.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
@@ -213,6 +253,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
           requireMinSeasonPoints: form.requireMinSeasonPoints,
           requireMinTier: form.requireMinTier || undefined,
           inviteOnly: form.inviteOnly,
+          coverImageUrl: form.coverImageUrl || undefined,
         },
       });
     } else {
@@ -238,6 +279,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
         requireMinSeasonPoints: form.requireMinSeasonPoints,
         requireMinTier: form.requireMinTier || undefined,
         inviteOnly: form.inviteOnly,
+        coverImageUrl: form.coverImageUrl || undefined,
       });
     }
   };
@@ -347,6 +389,61 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
                   rows={2}
                   className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B] resize-none"
                 />
+              </div>
+              {/* Cover Image Upload */}
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">封面图片</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleCoverUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+                {form.coverImageUrl ? (
+                  <div className="relative group">
+                    <img
+                      src={form.coverImageUrl}
+                      alt="封面预览"
+                      className="w-full h-36 object-cover rounded-lg border border-border"
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-white/20 text-white text-xs rounded-lg hover:bg-white/30"
+                      >
+                        {uploadCoverMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "替换"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set("coverImageUrl", "")}
+                        className="px-3 py-1.5 bg-red-500/20 text-red-400 text-xs rounded-lg hover:bg-red-500/30"
+                      >
+                        移除
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-28 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-[#F0B90B]/50 hover:text-foreground transition-colors"
+                  >
+                    {uploadCoverMutation.isPending ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <ImageIcon className="w-6 h-6" />
+                        <span className="text-xs">点击上传封面图 (JPG/PNG/WebP, max 5MB)</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
               {!isEdit && (
                 <div className="grid grid-cols-2 gap-3">

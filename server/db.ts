@@ -433,6 +433,7 @@ export async function createCompetitionDirect(input: {
   requireMinSeasonPoints?: number;
   requireMinTier?: string;
   inviteOnly?: boolean;
+  coverImageUrl?: string;
   createdBy?: number;
 }): Promise<number> {
   const db = await getDb();
@@ -467,6 +468,7 @@ export async function createCompetitionDirect(input: {
     requireMinSeasonPoints: input.requireMinSeasonPoints ?? 0,
     requireMinTier: input.requireMinTier ?? null,
     inviteOnly: input.inviteOnly ? 1 : 0,
+    coverImageUrl: input.coverImageUrl ?? null,
     createdBy: input.createdBy ?? null,
     archived: 0,
     createdAt: now,

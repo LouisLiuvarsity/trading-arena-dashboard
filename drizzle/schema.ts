@@ -87,6 +87,7 @@ export const competitions = mysqlTable("competitions", {
   requireMinSeasonPoints: int("requireMinSeasonPoints").notNull().default(0),
   requireMinTier: varchar("requireMinTier", { length: 16 }),
   inviteOnly: int("inviteOnly").notNull().default(0),
+  coverImageUrl: varchar("coverImageUrl", { length: 512 }),
   createdBy: int("createdBy"),
   archived: int("archived").notNull().default(0),
   createdAt: bigint("createdAt", { mode: "number" }).notNull(),
