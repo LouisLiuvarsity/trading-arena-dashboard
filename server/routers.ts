@@ -35,6 +35,45 @@ const REGISTRATION_UPDATE_STATUSES = ["pending", "accepted", "rejected", "waitli
 const CHAT_FILTER_STATUSES = ["all", "visible", "hidden", "deleted"] as const;
 const CHAT_UPDATE_STATUSES = ["visible", "hidden", "deleted"] as const;
 
+/**
+ * Ensures competition exists on the Arena API.
+ * If matchId is null, creates it on Arena and stores the returned ID.
+ * Returns the Arena-side competition ID.
+ */
+async function ensureArenaCompetition(localId: number): Promise<number> {
+  const comp = await getCompetitionById(localId);
+  if (!comp) throw new Error("比赛不存在");
+
+  if (comp.matchId) return comp.matchId;
+
+  const arenaResult = await arenaClient.createCompetition({
+    seasonId: comp.seasonId,
+    title: comp.title,
+    slug: comp.slug,
+    description: comp.description ?? undefined,
+    competitionNumber: comp.competitionNumber,
+    competitionType: comp.competitionType,
+    maxParticipants: comp.maxParticipants,
+    minParticipants: comp.minParticipants,
+    registrationOpenAt: comp.registrationOpenAt ?? undefined,
+    registrationCloseAt: comp.registrationCloseAt ?? undefined,
+    startTime: comp.startTime,
+    endTime: comp.endTime,
+    symbol: comp.symbol,
+    startingCapital: comp.startingCapital,
+    maxTradesPerMatch: comp.maxTradesPerMatch,
+    closeOnlySeconds: comp.closeOnlySeconds,
+    feeRate: comp.feeRate,
+    prizePool: comp.prizePool,
+    requireMinSeasonPoints: comp.requireMinSeasonPoints,
+    requireMinTier: comp.requireMinTier ?? undefined,
+    inviteOnly: comp.inviteOnly === 1,
+  });
+
+  await updateCompetitionDirect(localId, { matchId: arenaResult.id });
+  return arenaResult.id;
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -245,6 +284,15 @@ export const appRouter = router({
           ...input,
           createdBy: ctx.user.id,
         });
+
+        // Sync to Arena API (best-effort: don't block create on Arena failure)
+        try {
+          const arenaResult = await arenaClient.createCompetition(input);
+          await updateCompetitionDirect(id, { matchId: arenaResult.id });
+        } catch (err) {
+          console.error("[competitions.create] Arena sync failed, will retry on transition:", err);
+        }
+
         await createAdminLog({
           adminUserId: ctx.user.id,
           adminName: ctx.user.name || "Admin",
@@ -285,6 +333,17 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         await updateCompetitionDirect(input.id, input.data);
+
+        // Sync to Arena if already registered there
+        const comp = await getCompetitionById(input.id);
+        if (comp?.matchId) {
+          try {
+            await arenaClient.updateCompetition(comp.matchId, input.data);
+          } catch (err) {
+            console.error("[competitions.update] Arena sync failed:", err);
+          }
+        }
+
         await createAdminLog({
           adminUserId: ctx.user.id,
           adminName: ctx.user.name || "Admin",
@@ -300,7 +359,7 @@ export const appRouter = router({
     transition: adminProcedure
       .input(z.object({
         id: z.number().positive(),
-        status: z.enum(["announced", "registration_open", "registration_closed", "live", "cancelled"]),
+        status: z.enum(["announced", "registration_open", "registration_closed", "live", "settling", "completed", "cancelled"]),
       }))
       .mutation(async ({ input, ctx }) => {
         // Server-side state machine validation before calling Arena API
@@ -310,7 +369,16 @@ export const appRouter = router({
         if (!allowed || !allowed.includes(input.status)) {
           throw new Error(`无法从「${comp.status}」转换到「${input.status}」`);
         }
-        const result = await arenaClient.transitionCompetition(input.id, input.status);
+
+        // Ensure competition exists on Arena (creates if matchId is null)
+        const arenaId = await ensureArenaCompetition(input.id);
+
+        // Transition on Arena using the correct Arena-side ID
+        const result = await arenaClient.transitionCompetition(arenaId, input.status);
+
+        // Sync status back to local DB
+        await updateCompetitionDirect(input.id, { status: input.status });
+
         await createAdminLog({
           adminUserId: ctx.user.id,
           adminName: ctx.user.name || "Admin",
@@ -318,7 +386,7 @@ export const appRouter = router({
           targetType: "competition",
           targetId: String(input.id),
           description: `比赛 #${input.id} 状态变更为 ${input.status}`,
-          metadata: JSON.stringify({ status: input.status }),
+          metadata: JSON.stringify({ status: input.status, arenaId }),
         });
         return result;
       }),
@@ -326,16 +394,53 @@ export const appRouter = router({
     duplicate: adminProcedure
       .input(z.object({ id: z.number().positive() }))
       .mutation(async ({ input, ctx }) => {
-        const result = await arenaClient.duplicateCompetition(input.id);
+        // Ensure source exists on Arena
+        const arenaId = await ensureArenaCompetition(input.id);
+
+        // Duplicate on Arena
+        const arenaResult = await arenaClient.duplicateCompetition(arenaId);
+
+        // Create local DB copy
+        const source = await getCompetitionById(input.id);
+        if (!source) throw new Error("比赛不存在");
+
+        const newLocalId = await createCompetitionDirect({
+          seasonId: source.seasonId,
+          title: `${source.title} (副本)`,
+          slug: `${source.slug}-copy-${Date.now()}`,
+          description: source.description ?? undefined,
+          competitionNumber: source.competitionNumber,
+          competitionType: source.competitionType,
+          maxParticipants: source.maxParticipants,
+          minParticipants: source.minParticipants,
+          registrationOpenAt: source.registrationOpenAt ?? undefined,
+          registrationCloseAt: source.registrationCloseAt ?? undefined,
+          startTime: source.startTime,
+          endTime: source.endTime,
+          symbol: source.symbol,
+          startingCapital: source.startingCapital,
+          maxTradesPerMatch: source.maxTradesPerMatch,
+          closeOnlySeconds: source.closeOnlySeconds,
+          feeRate: source.feeRate,
+          prizePool: source.prizePool,
+          requireMinSeasonPoints: source.requireMinSeasonPoints,
+          requireMinTier: source.requireMinTier ?? undefined,
+          inviteOnly: source.inviteOnly === 1,
+          createdBy: ctx.user.id,
+        });
+
+        // Store Arena's new competition ID
+        await updateCompetitionDirect(newLocalId, { matchId: arenaResult.id });
+
         await createAdminLog({
           adminUserId: ctx.user.id,
           adminName: ctx.user.name || "Admin",
           action: "competition_duplicate",
           targetType: "competition",
           targetId: String(input.id),
-          description: `复制比赛 #${input.id} → 新比赛 #${result.id}`,
+          description: `复制比赛 #${input.id} → 新比赛 #${newLocalId}`,
         });
-        return result;
+        return { id: newLocalId };
       }),
 
     uploadCover: adminProcedure
