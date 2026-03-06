@@ -35,44 +35,11 @@ const REGISTRATION_UPDATE_STATUSES = ["pending", "accepted", "rejected", "waitli
 const CHAT_FILTER_STATUSES = ["all", "visible", "hidden", "deleted"] as const;
 const CHAT_UPDATE_STATUSES = ["visible", "hidden", "deleted"] as const;
 
-/**
- * Ensures competition exists on the Arena API.
- * If matchId is null, creates it on Arena and stores the returned ID.
- * Returns the Arena-side competition ID.
- */
-async function ensureArenaCompetition(localId: number): Promise<number> {
-  const comp = await getCompetitionById(localId);
-  if (!comp) throw new Error("比赛不存在");
-
-  if (comp.matchId) return comp.matchId;
-
-  const arenaResult = await arenaClient.createCompetition({
-    seasonId: comp.seasonId,
-    title: comp.title,
-    slug: comp.slug,
-    description: comp.description ?? undefined,
-    competitionNumber: comp.competitionNumber,
-    competitionType: comp.competitionType,
-    maxParticipants: comp.maxParticipants,
-    minParticipants: comp.minParticipants,
-    registrationOpenAt: comp.registrationOpenAt ?? undefined,
-    registrationCloseAt: comp.registrationCloseAt ?? undefined,
-    startTime: comp.startTime,
-    endTime: comp.endTime,
-    symbol: comp.symbol,
-    startingCapital: comp.startingCapital,
-    maxTradesPerMatch: comp.maxTradesPerMatch,
-    closeOnlySeconds: comp.closeOnlySeconds,
-    feeRate: comp.feeRate,
-    prizePool: comp.prizePool,
-    requireMinSeasonPoints: comp.requireMinSeasonPoints,
-    requireMinTier: comp.requireMinTier ?? undefined,
-    inviteOnly: comp.inviteOnly === 1,
-  });
-
-  await updateCompetitionDirect(localId, { matchId: arenaResult.id });
-  return arenaResult.id;
-}
+// NOTE: ensureArenaCompetition has been removed.
+// Dashboard and Arena share the same database, so competitions created here
+// are already visible to Arena. No need to create them via Arena API.
+// For status transitions, we call Arena's transition endpoint directly
+// using the local competition ID (which is the same as Arena's ID).
 
 export const appRouter = router({
   system: systemRouter,
@@ -285,13 +252,8 @@ export const appRouter = router({
           createdBy: ctx.user.id,
         });
 
-        // Sync to Arena API (best-effort: don't block create on Arena failure)
-        try {
-          const arenaResult = await arenaClient.createCompetition(input);
-          await updateCompetitionDirect(id, { matchId: arenaResult.id });
-        } catch (err) {
-          console.error("[competitions.create] Arena sync failed, will retry on transition:", err);
-        }
+        // Dashboard and Arena share the same database.
+        // No need to sync to Arena API — the competition is already visible to Arena.
 
         await createAdminLog({
           adminUserId: ctx.user.id,
@@ -334,15 +296,8 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         await updateCompetitionDirect(input.id, input.data);
 
-        // Sync to Arena if already registered there
-        const comp = await getCompetitionById(input.id);
-        if (comp?.matchId) {
-          try {
-            await arenaClient.updateCompetition(comp.matchId, input.data);
-          } catch (err) {
-            console.error("[competitions.update] Arena sync failed:", err);
-          }
-        }
+        // Dashboard and Arena share the same database.
+        // No need to sync to Arena API — the update is already visible to Arena.
 
         await createAdminLog({
           adminUserId: ctx.user.id,
@@ -362,7 +317,7 @@ export const appRouter = router({
         status: z.enum(["announced", "registration_open", "registration_closed", "live", "settling", "completed", "cancelled"]),
       }))
       .mutation(async ({ input, ctx }) => {
-        // Server-side state machine validation before calling Arena API
+        // Server-side state machine validation
         const comp = await getCompetitionById(input.id);
         if (!comp) throw new Error("比赛不存在");
         const allowed = VALID_TRANSITIONS[comp.status];
@@ -370,14 +325,43 @@ export const appRouter = router({
           throw new Error(`无法从「${comp.status}」转换到「${input.status}」`);
         }
 
-        // Ensure competition exists on Arena (creates if matchId is null)
-        const arenaId = await ensureArenaCompetition(input.id);
+        // Dashboard and Arena share the same database.
+        // For non-live transitions, update the DB directly (no Arena API needed).
+        // For "live" transition, call Arena API so it can start the match engine,
+        // switch market symbol, create the matches row, and send notifications.
+        const arenaTransitionStatuses = ["announced", "registration_open", "registration_closed", "live", "cancelled"];
+        if (arenaTransitionStatuses.includes(input.status)) {
+          try {
+            // Use the local competition ID directly (shared DB = same IDs)
+            await arenaClient.transitionCompetition(input.id, input.status);
+          } catch (err) {
+            // If Arena API fails for non-critical transitions, fall back to direct DB update
+            if (input.status === "live") {
+              // "live" transition is critical (Arena needs to start match engine)
+              throw new Error(`Arena API 状态转换失败: ${(err as Error).message}`);
+            }
+            console.error(`[transition] Arena API failed for ${input.status}, falling back to direct DB:`, err);
+            await updateCompetitionDirect(input.id, { status: input.status });
+            await createAdminLog({
+              adminUserId: ctx.user.id,
+              adminName: ctx.user.name || "Admin",
+              action: "competition_transition",
+              targetType: "competition",
+              targetId: String(input.id),
+              description: `比赛 #${input.id} 状态变更为 ${input.status} (直接写入)`,
+              metadata: JSON.stringify({ status: input.status, fallback: true }),
+            });
+            return { ok: true };
+          }
+        } else {
+          // settling, completed — not supported by Arena transition API, update DB directly
+          await updateCompetitionDirect(input.id, { status: input.status });
+        }
 
-        // Transition on Arena using the correct Arena-side ID
-        const result = await arenaClient.transitionCompetition(arenaId, input.status);
-
-        // Sync status back to local DB
-        await updateCompetitionDirect(input.id, { status: input.status });
+        // If Arena API succeeded, also sync status in local DB for consistency
+        if (arenaTransitionStatuses.includes(input.status)) {
+          await updateCompetitionDirect(input.id, { status: input.status });
+        }
 
         await createAdminLog({
           adminUserId: ctx.user.id,
@@ -386,24 +370,18 @@ export const appRouter = router({
           targetType: "competition",
           targetId: String(input.id),
           description: `比赛 #${input.id} 状态变更为 ${input.status}`,
-          metadata: JSON.stringify({ status: input.status, arenaId }),
+          metadata: JSON.stringify({ status: input.status }),
         });
-        return result;
+        return { ok: true };
       }),
 
     duplicate: adminProcedure
       .input(z.object({ id: z.number().positive() }))
       .mutation(async ({ input, ctx }) => {
-        // Ensure source exists on Arena
-        const arenaId = await ensureArenaCompetition(input.id);
-
-        // Duplicate on Arena
-        const arenaResult = await arenaClient.duplicateCompetition(arenaId);
-
-        // Create local DB copy
         const source = await getCompetitionById(input.id);
         if (!source) throw new Error("比赛不存在");
 
+        // Create local DB copy directly (shared DB, no need for Arena API)
         const newLocalId = await createCompetitionDirect({
           seasonId: source.seasonId,
           title: `${source.title} (副本)`,
@@ -428,9 +406,6 @@ export const appRouter = router({
           inviteOnly: source.inviteOnly === 1,
           createdBy: ctx.user.id,
         });
-
-        // Store Arena's new competition ID
-        await updateCompetitionDirect(newLocalId, { matchId: arenaResult.id });
 
         await createAdminLog({
           adminUserId: ctx.user.id,

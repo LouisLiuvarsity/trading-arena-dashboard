@@ -1,0 +1,55 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mWBJwMymT3uxJ8c.a334321e985d --database 6Yq9eJsfZbyndNatnSjnyG --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME;",
+  "rows": [
+    {
+      "TABLE_NAME": "__drizzle_migrations"
+    },
+    {
+      "TABLE_NAME": "admin_logs"
+    },
+    {
+      "TABLE_NAME": "arena_accounts"
+    },
+    {
+      "TABLE_NAME": "arena_sessions"
+    },
+    {
+      "TABLE_NAME": "behavior_events"
+    },
+    {
+      "TABLE_NAME": "chat_messages"
+    },
+    {
+      "TABLE_NAME": "chat_moderation"
+    },
+    {
+      "TABLE_NAME": "competition_registrations"
+    },
+    {
+      "TABLE_NAME": "competitions"
+    },
+    {
+      "TABLE_NAME": "institutions"
+    },
+    {
+      "TABLE_NAME": "match_results"
+    },
+    {
+      "TABLE_NAME": "seasons"
+    },
+    {
+      "TABLE_NAME": "trades"
+    },
+    {
+      "TABLE_NAME": "user_profiles"
+    },
+    {
+      "TABLE_NAME": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\n__drizzle_migrations\nadmin_logs\narena_accounts\narena_sessions\nbehavior_events\nchat_messages\nchat_moderation\ncompetition_registrations\ncompetitions\ninstitutions\nmatch_results\nseasons\ntrades\nuser_profiles\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 1522
+}
