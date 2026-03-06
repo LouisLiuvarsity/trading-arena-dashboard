@@ -185,6 +185,7 @@ export default function StatsPage() {
                   <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">#</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">选手</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">段位</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">排名分</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">积分</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">地区</th>
                 </tr>
@@ -199,13 +200,14 @@ export default function StatsPage() {
                     </td>
                     <td className="px-3 py-2 text-sm font-medium text-foreground">{trader.username}</td>
                     <td className="px-3 py-2"><TierBadge tier={getTierFromPoints(trader.seasonPoints)} /></td>
-                    <td className="px-3 py-2 text-right font-mono text-sm text-[#F0B90B]">{trader.seasonPoints}</td>
+                    <td className="px-3 py-2 text-right font-mono text-sm text-[#F0B90B]">{(trader as any).seasonRankScore ?? trader.seasonPoints}</td>
+                    <td className="px-3 py-2 text-right font-mono text-sm text-muted-foreground">{trader.seasonPoints}</td>
                     <td className="px-3 py-2 text-right font-mono text-sm text-[#0ECB81]">{trader.country || "—"}</td>
                   </tr>
                 ))}
                 {(topTraders || []).length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">暂无数据</td>
+                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">暂无数据</td>
                   </tr>
                 )}
               </tbody>

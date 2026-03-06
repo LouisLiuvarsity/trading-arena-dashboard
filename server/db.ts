@@ -839,7 +839,8 @@ export async function getTopTraders(limit = 10) {
   const db = await getDb();
   if (!db) return [];
 
-  return db
+  // Get all accounts with season points
+  const accounts = await db
     .select({
       id: arenaAccounts.id,
       username: arenaAccounts.username,
@@ -848,8 +849,30 @@ export async function getTopTraders(limit = 10) {
     })
     .from(arenaAccounts)
     .leftJoin(userProfiles, eq(arenaAccounts.id, userProfiles.arenaAccountId))
+    .where(sql`${arenaAccounts.seasonPoints} > 0`)
     .orderBy(desc(arenaAccounts.seasonPoints))
-    .limit(limit);
+    .limit(200); // Fetch more to re-rank by seasonRankScore
+
+  // Compute avgHoldWeight per account
+  const avgWeights = await db
+    .select({
+      arenaAccountId: trades.arenaAccountId,
+      avg: sql<number>`COALESCE(AVG(${trades.holdWeight}), 0)`,
+    })
+    .from(trades)
+    .groupBy(trades.arenaAccountId);
+
+  const weightMap = new Map(avgWeights.map(r => [r.arenaAccountId, r.avg]));
+
+  // Rank by seasonRankScore = seasonPoints × avgHoldWeight
+  const ranked = accounts.map(a => ({
+    ...a,
+    avgHoldWeight: Math.round((weightMap.get(a.id) ?? 0) * 100) / 100,
+    seasonRankScore: Math.round(a.seasonPoints * (weightMap.get(a.id) ?? 0) * 100) / 100,
+  }));
+
+  ranked.sort((a, b) => b.seasonRankScore - a.seasonRankScore);
+  return ranked.slice(0, limit);
 }
 
 export async function getInstitutionLeaderboard(limit = 10) {

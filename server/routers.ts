@@ -187,19 +187,31 @@ export const appRouter = router({
         status: z.enum(REGISTRATION_UPDATE_STATUSES),
       }))
       .mutation(async ({ input, ctx }) => {
-        const result = await updateRegistrationStatus(input.ids, input.status, ctx.user.id);
-        if (result) {
-          await createAdminLog({
-            adminUserId: ctx.user.id,
-            adminName: ctx.user.name || "Admin",
-            action: `registration_${input.status}`,
-            targetType: "registration",
-            targetId: input.ids.join(","),
-            description: `将 ${input.ids.length} 个报名状态更新为 ${input.status}`,
-            metadata: JSON.stringify({ ids: input.ids, status: input.status }),
-          });
+        // For accept/reject, use Arena API so user notifications are sent
+        if ((input.status === "accepted" || input.status === "rejected") && input.ids.length > 0) {
+          for (const regId of input.ids) {
+            try {
+              await arenaClient.reviewRegistration(regId, input.status);
+            } catch (err) {
+              console.error(`[updateRegistration] Arena review failed for #${regId}:`, err);
+              // Fallback to direct DB write if Arena API fails
+              await updateRegistrationStatus([regId], input.status, ctx.user.id);
+            }
+          }
+        } else {
+          // For pending/waitlisted, direct DB is fine (no user notification needed)
+          await updateRegistrationStatus(input.ids, input.status, ctx.user.id);
         }
-        return { success: result };
+        await createAdminLog({
+          adminUserId: ctx.user.id,
+          adminName: ctx.user.name || "Admin",
+          action: `registration_${input.status}`,
+          targetType: "registration",
+          targetId: input.ids.join(","),
+          description: `将 ${input.ids.length} 个报名状态更新为 ${input.status}`,
+          metadata: JSON.stringify({ ids: input.ids, status: input.status }),
+        });
+        return { success: true };
       }),
 
     create: adminProcedure
