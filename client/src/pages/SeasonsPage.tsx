@@ -61,11 +61,17 @@ export default function SeasonsPage() {
       toast.error("请填写所有必填字段");
       return;
     }
+    const startTs = new Date(form.startDate).getTime();
+    const endTs = new Date(form.endDate).getTime();
+    if (endTs <= startTs) {
+      toast.error("结束日期必须晚于开始日期");
+      return;
+    }
     createMutation.mutate({
       name: form.name,
       slug: form.slug,
-      startDate: new Date(form.startDate).getTime(),
-      endDate: new Date(form.endDate).getTime(),
+      startDate: startTs,
+      endDate: endTs,
     });
   };
 

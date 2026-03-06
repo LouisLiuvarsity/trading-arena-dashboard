@@ -9,6 +9,8 @@ import {
   LayoutDashboard, Users, Trophy, MessageSquare, BarChart3,
   ChevronLeft, ChevronRight, Shield, Menu, X, FileText, Calendar,
 } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 
 const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663325188422/6Yq9eJsfZbyndNatnSjnyG/sidebar-logo-2N3YSfimiB7wqNyCjeh5Na.webp";
 
@@ -29,9 +31,13 @@ const navItems: NavItem[] = [
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { loading, isAuthenticated } = useAuth({ redirectOnUnauthenticated: true });
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
+
+  if (loading) return <DashboardLayoutSkeleton />;
+  if (!isAuthenticated) return null;
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";

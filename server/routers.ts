@@ -18,6 +18,15 @@ import {
 } from "./db";
 import * as arenaClient from "./arenaClient";
 
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  draft: ["announced", "cancelled"],
+  announced: ["registration_open", "cancelled"],
+  registration_open: ["registration_closed", "cancelled"],
+  registration_closed: ["live", "cancelled"],
+  live: ["settling"],
+  settling: ["completed"],
+};
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -272,6 +281,13 @@ export const appRouter = router({
         status: z.enum(["announced", "registration_open", "registration_closed", "live", "cancelled"]),
       }))
       .mutation(async ({ input, ctx }) => {
+        // Server-side state machine validation before calling Arena API
+        const comp = await getCompetitionById(input.id);
+        if (!comp) throw new Error("比赛不存在");
+        const allowed = VALID_TRANSITIONS[comp.status];
+        if (!allowed || !allowed.includes(input.status)) {
+          throw new Error(`无法从「${comp.status}」转换到「${input.status}」`);
+        }
         const result = await arenaClient.transitionCompetition(input.id, input.status);
         await createAdminLog({
           adminUserId: ctx.user.id,

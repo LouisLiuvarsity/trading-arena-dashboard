@@ -6,14 +6,11 @@ import { ENV } from './_core/env';
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
+  if (_db) return _db;
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not configured");
   }
+  _db = drizzle(process.env.DATABASE_URL);
   return _db;
 }
 
@@ -717,14 +714,14 @@ export async function getTierDistribution() {
     .select({ seasonPoints: arenaAccounts.seasonPoints })
     .from(arenaAccounts);
 
-  // Compute tiers based on season points
+  // Compute tiers based on season points (must match TA/server/constants.ts RANK_TIERS)
   const tiers = { iron: 0, bronze: 0, silver: 0, gold: 0, platinum: 0, diamond: 0 };
   for (const a of allAccounts) {
     const pts = a.seasonPoints;
-    if (pts >= 2000) tiers.diamond++;
-    else if (pts >= 1200) tiers.platinum++;
-    else if (pts >= 700) tiers.gold++;
-    else if (pts >= 350) tiers.silver++;
+    if (pts >= 1500) tiers.diamond++;
+    else if (pts >= 1000) tiers.platinum++;
+    else if (pts >= 600) tiers.gold++;
+    else if (pts >= 300) tiers.silver++;
     else if (pts >= 100) tiers.bronze++;
     else tiers.iron++;
   }
@@ -944,7 +941,8 @@ export async function getAllArenaUsersForExport() {
     })
     .from(arenaAccounts)
     .leftJoin(userProfiles, eq(arenaAccounts.id, userProfiles.arenaAccountId))
-    .orderBy(desc(arenaAccounts.seasonPoints));
+    .orderBy(desc(arenaAccounts.seasonPoints))
+    .limit(10000);
 }
 
 export async function getAllCompetitionsForExport() {
@@ -965,7 +963,8 @@ export async function getAllCompetitionsForExport() {
       prizePool: competitions.prizePool,
     })
     .from(competitions)
-    .orderBy(desc(competitions.startTime));
+    .orderBy(desc(competitions.startTime))
+    .limit(10000);
 }
 
 export async function getAllAdminLogsForExport() {
@@ -975,7 +974,8 @@ export async function getAllAdminLogsForExport() {
   return db
     .select()
     .from(adminLogs)
-    .orderBy(desc(adminLogs.createdAt));
+    .orderBy(desc(adminLogs.createdAt))
+    .limit(10000);
 }
 
 // ─── Archive ─────────────────────────────────────────────────────────────────
@@ -1009,35 +1009,40 @@ export async function deleteCompetitionCascade(id: number): Promise<{
   const [comp] = await db.select({ matchId: competitions.matchId }).from(competitions).where(eq(competitions.id, id)).limit(1);
   if (!comp) throw new Error(`Competition #${id} not found`);
 
-  // 1. Delete trades via matchId
-  let tradeRows = 0;
-  if (comp.matchId) {
-    const tradeResult = await db.delete(trades).where(eq(trades.matchId, comp.matchId));
-    tradeRows = tradeResult[0].affectedRows ?? 0;
-  }
+  // Wrap all deletes in a transaction for atomicity
+  const result = await db.transaction(async (tx) => {
+    // 1. Delete trades via matchId
+    let tradeRows = 0;
+    if (comp.matchId) {
+      const tradeResult = await tx.delete(trades).where(eq(trades.matchId, comp.matchId));
+      tradeRows = tradeResult[0].affectedRows ?? 0;
+    }
 
-  // 2. Delete match results
-  const mrResult = await db.delete(matchResults).where(eq(matchResults.competitionId, id));
-  const matchResultRows = mrResult[0].affectedRows ?? 0;
+    // 2. Delete match results
+    const mrResult = await tx.delete(matchResults).where(eq(matchResults.competitionId, id));
+    const matchResultRows = mrResult[0].affectedRows ?? 0;
 
-  // 3. Delete registrations
-  const regResult = await db.delete(competitionRegistrations).where(eq(competitionRegistrations.competitionId, id));
-  const registrations = regResult[0].affectedRows ?? 0;
+    // 3. Delete registrations
+    const regResult = await tx.delete(competitionRegistrations).where(eq(competitionRegistrations.competitionId, id));
+    const registrations = regResult[0].affectedRows ?? 0;
 
-  // 4. Delete chat messages + their moderation records
-  const msgs = await db.select({ id: chatMessages.id }).from(chatMessages).where(eq(chatMessages.competitionId, id));
-  let chatRows = 0;
-  if (msgs.length > 0) {
-    const msgIds = msgs.map(m => m.id);
-    await db.delete(chatModeration).where(inArray(chatModeration.chatMessageId, msgIds));
-    const chatResult = await db.delete(chatMessages).where(eq(chatMessages.competitionId, id));
-    chatRows = chatResult[0].affectedRows ?? 0;
-  }
+    // 4. Delete chat messages + their moderation records
+    const msgs = await tx.select({ id: chatMessages.id }).from(chatMessages).where(eq(chatMessages.competitionId, id));
+    let chatRows = 0;
+    if (msgs.length > 0) {
+      const msgIds = msgs.map(m => m.id);
+      await tx.delete(chatModeration).where(inArray(chatModeration.chatMessageId, msgIds));
+      const chatResult = await tx.delete(chatMessages).where(eq(chatMessages.competitionId, id));
+      chatRows = chatResult[0].affectedRows ?? 0;
+    }
 
-  // 5. Delete competition itself
-  await db.delete(competitions).where(eq(competitions.id, id));
+    // 5. Delete competition itself
+    await tx.delete(competitions).where(eq(competitions.id, id));
 
-  return { registrations, matchResultRows, tradeRows, chatRows };
+    return { registrations, matchResultRows, tradeRows, chatRows };
+  });
+
+  return result;
 }
 
 export async function deleteSeasonCascade(id: number): Promise<{ competitionsDeleted: number }> {
@@ -1047,7 +1052,7 @@ export async function deleteSeasonCascade(id: number): Promise<{ competitionsDel
   // Find all competitions in this season
   const comps = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.seasonId, id));
 
-  // Cascade delete each competition
+  // Cascade delete each competition (each already uses its own transaction)
   for (const comp of comps) {
     await deleteCompetitionCascade(comp.id);
   }
