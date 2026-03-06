@@ -407,14 +407,17 @@ export async function createSeasonDirect(input: {
     const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
     return Number(insertId);
   } catch (err: any) {
-    const msg: string = err?.message || "";
-    if (msg.includes("Duplicate entry") && msg.includes("slug")) {
+    const sqlMsg: string = err?.sqlMessage || err?.code || "";
+    const fullMsg: string = err?.message || "";
+    const diagnostic = sqlMsg || fullMsg.slice(-300);
+    if (fullMsg.includes("Duplicate entry") && fullMsg.includes("slug")) {
       throw new Error(`赛季 slug「${input.slug}」已存在，请使用不同的 slug`);
     }
-    if (msg.includes("Unknown column")) {
+    if (fullMsg.includes("Unknown column")) {
       throw new Error(`数据库缺少必要的列，请重启服务以自动修复 schema`);
     }
-    throw new Error(`创建赛季失败: ${msg.slice(0, 200)}`);
+    console.error("[createSeasonDirect] SQL error:", { code: err?.code, sqlMessage: err?.sqlMessage, errno: err?.errno });
+    throw new Error(`创建赛季失败: ${diagnostic || fullMsg.slice(0, 300)}`);
   }
 }
 
@@ -478,14 +481,18 @@ export async function createCompetitionDirect(input: {
     const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
     return Number(insertId);
   } catch (err: any) {
-    const msg: string = err?.message || "";
-    if (msg.includes("Duplicate entry") && msg.includes("slug")) {
+    // mysql2 errors have sqlMessage/code; drizzle wraps them in message with full SQL
+    const sqlMsg: string = err?.sqlMessage || err?.code || "";
+    const fullMsg: string = err?.message || "";
+    const diagnostic = sqlMsg || fullMsg.replace(/Failed query:[\s\S]*?params:[\s\S]*$/, "").trim() || fullMsg.slice(-300);
+    if (fullMsg.includes("Duplicate entry") && fullMsg.includes("slug")) {
       throw new Error(`比赛 slug「${input.slug}」已存在，请使用不同的 slug`);
     }
-    if (msg.includes("Unknown column")) {
+    if (fullMsg.includes("Unknown column")) {
       throw new Error(`数据库缺少必要的列（archived/coverImageUrl），请重启服务以自动修复 schema`);
     }
-    throw new Error(`创建比赛失败: ${msg.slice(0, 200)}`);
+    console.error("[createCompetitionDirect] SQL error:", { code: err?.code, sqlMessage: err?.sqlMessage, errno: err?.errno });
+    throw new Error(`创建比赛失败: ${diagnostic || fullMsg.slice(0, 300)}`);
   }
 }
 
