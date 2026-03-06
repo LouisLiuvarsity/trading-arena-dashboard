@@ -1,0 +1,213 @@
+{
+  "query": "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA FROM information_schema.COLUMNS WHERE TABLE_NAME = 'competitions' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mWBJwMymT3uxJ8c.a334321e985d --database 6Yq9eJsfZbyndNatnSjnyG --execute SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA FROM information_schema.COLUMNS WHERE TABLE_NAME = 'competitions' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "COLUMN_NAME": "seasonId",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(256)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "slug",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "competitionNumber",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "competitionType",
+      "COLUMN_TYPE": "varchar(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "regular",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "draft",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "matchId",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "maxParticipants",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "50",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "minParticipants",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "5",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "registrationOpenAt",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "registrationCloseAt",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "startTime",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "endTime",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "symbol",
+      "COLUMN_TYPE": "varchar(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "SOLUSDT",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "startingCapital",
+      "COLUMN_TYPE": "double",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "5000",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "maxTradesPerMatch",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "40",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "closeOnlySeconds",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "1800",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "feeRate",
+      "COLUMN_TYPE": "double",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0.0005",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "prizePool",
+      "COLUMN_TYPE": "double",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "500",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "prizeTableJson",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "pointsTableJson",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "requireMinSeasonPoints",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "requireMinTier",
+      "COLUMN_TYPE": "varchar(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "inviteOnly",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "createdBy",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "createdAt",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "COLUMN_NAME": "updatedAt",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tCOLUMN_TYPE\tIS_NULLABLE\tCOLUMN_DEFAULT\tEXTRA\nid\tint\tNO\tNULL\tauto_increment\nseasonId\tint\tNO\tNULL\t\ntitle\tvarchar(256)\tNO\tNULL\t\nslug\tvarchar(64)\tNO\tNULL\t\ndescription\ttext\tYES\tNULL\t\ncompetitionNumber\tint\tNO\tNULL\t\ncompetitionType\tvarchar(16)\tNO\tregular\t\nstatus\tvarchar(24)\tNO\tdraft\t\nmatchId\tint\tYES\tNULL\t\nmaxParticipants\tint\tNO\t50\t\nminParticipants\tint\tNO\t5\t\nregistrationOpenAt\tbigint\tYES\tNULL\t\nregistrationCloseAt\tbigint\tYES\tNULL\t\nstartTime\tbigint\tNO\tNULL\t\nendTime\tbigint\tNO\tNULL\t\nsymbol\tvarchar(16)\tNO\tSOLUSDT\t\nstartingCapital\tdouble\tNO\t5000\t\nmaxTradesPerMatch\tint\tNO\t40\t\ncloseOnlySeconds\tint\tNO\t1800\t\nfeeRate\tdouble\tNO\t0.0005\t\nprizePool\tdouble\tNO\t500\t\nprizeTableJson\ttext\tYES\tNULL\t\npointsTableJson\ttext\tYES\tNULL\t\nrequireMinSeasonPoints\tint\tNO\t0\t\nrequireMinTier\tvarchar(16)\tYES\tNULL\t\ninviteOnly\tint\tNO\t0\t\ncreatedBy\tint\tYES\tNULL\t\ncreatedAt\tbigint\tNO\tNULL\t\nupdatedAt\tbigint\tNO\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 1518
+}

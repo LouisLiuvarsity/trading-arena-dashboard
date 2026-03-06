@@ -397,16 +397,14 @@ export async function createSeasonDirect(input: {
   if (!db) throw new Error("Database not available");
 
   const now = Date.now();
-  const result = await db.insert(seasons).values({
-    name: input.name,
-    slug: input.slug,
-    status: "active",
-    startDate: input.startDate,
-    endDate: input.endDate,
-    pointsDecayFactor: input.pointsDecayFactor ?? 0.8,
-    createdAt: now,
-  });
-  return Number(result[0].insertId);
+  // Use raw SQL to avoid Drizzle ORM generating `default` keyword for autoincrement id
+  const result = await db.execute(sql`
+    INSERT INTO seasons (name, slug, status, startDate, endDate, pointsDecayFactor, archived, createdAt)
+    VALUES (${input.name}, ${input.slug}, ${"active"}, ${input.startDate}, ${input.endDate},
+            ${input.pointsDecayFactor ?? 0.8}, ${0}, ${now})
+  `);
+  const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
+  return Number(insertId);
 }
 
 // ─── Competitions (Direct DB Write) ─────────────────────────────────────────
@@ -440,41 +438,33 @@ export async function createCompetitionDirect(input: {
   if (!db) throw new Error("Database not available");
 
   const now = Date.now();
-  // Explicitly set all fields to avoid Drizzle generating `default` keyword
-  // which causes issues with mysql2 prepared statements
-  const result = await db.insert(competitions).values({
-    seasonId: input.seasonId,
-    title: input.title,
-    slug: input.slug,
-    description: input.description ?? null,
-    competitionNumber: input.competitionNumber,
-    competitionType: input.competitionType ?? "regular",
-    status: "draft",
-    matchId: null,
-    maxParticipants: input.maxParticipants ?? 50,
-    minParticipants: input.minParticipants ?? 5,
-    registrationOpenAt: input.registrationOpenAt ?? null,
-    registrationCloseAt: input.registrationCloseAt ?? null,
-    startTime: input.startTime,
-    endTime: input.endTime,
-    symbol: input.symbol ?? "SOLUSDT",
-    startingCapital: input.startingCapital ?? 5000,
-    maxTradesPerMatch: input.maxTradesPerMatch ?? 40,
-    closeOnlySeconds: input.closeOnlySeconds ?? 1800,
-    feeRate: input.feeRate ?? 0.0005,
-    prizePool: input.prizePool ?? 500,
-    prizeTableJson: null,
-    pointsTableJson: null,
-    requireMinSeasonPoints: input.requireMinSeasonPoints ?? 0,
-    requireMinTier: input.requireMinTier ?? null,
-    inviteOnly: input.inviteOnly ? 1 : 0,
-    coverImageUrl: input.coverImageUrl ?? null,
-    createdBy: input.createdBy ?? null,
-    archived: 0,
-    createdAt: now,
-    updatedAt: now,
-  });
-  return Number(result[0].insertId);
+  // Use raw SQL to avoid Drizzle ORM generating `default` keyword for autoincrement id,
+  // which causes "Failed query" errors with mysql2/TiDB prepared statements
+  const result = await db.execute(sql`
+    INSERT INTO competitions (
+      seasonId, title, slug, description, competitionNumber, competitionType,
+      status, matchId, maxParticipants, minParticipants, registrationOpenAt,
+      registrationCloseAt, startTime, endTime, symbol, startingCapital,
+      maxTradesPerMatch, closeOnlySeconds, feeRate, prizePool, prizeTableJson,
+      pointsTableJson, requireMinSeasonPoints, requireMinTier, inviteOnly,
+      coverImageUrl, createdBy, archived, createdAt, updatedAt
+    ) VALUES (
+      ${input.seasonId}, ${input.title}, ${input.slug}, ${input.description ?? null},
+      ${input.competitionNumber}, ${input.competitionType ?? "regular"},
+      ${"draft"}, ${null}, ${input.maxParticipants ?? 50}, ${input.minParticipants ?? 5},
+      ${input.registrationOpenAt ?? null}, ${input.registrationCloseAt ?? null},
+      ${input.startTime}, ${input.endTime}, ${input.symbol ?? "SOLUSDT"},
+      ${input.startingCapital ?? 5000}, ${input.maxTradesPerMatch ?? 40},
+      ${input.closeOnlySeconds ?? 1800}, ${input.feeRate ?? 0.0005},
+      ${input.prizePool ?? 500}, ${null}, ${null},
+      ${input.requireMinSeasonPoints ?? 0}, ${input.requireMinTier ?? null},
+      ${input.inviteOnly ? 1 : 0}, ${input.coverImageUrl ?? null},
+      ${input.createdBy ?? null}, ${0}, ${now}, ${now}
+    )
+  `);
+  // db.execute returns [ResultSetHeader, FieldPacket[]]
+  const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
+  return Number(insertId);
 }
 
 export async function updateCompetitionDirect(

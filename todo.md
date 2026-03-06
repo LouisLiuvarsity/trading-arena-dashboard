@@ -37,3 +37,4 @@
 - [x] 手动创建 admin_logs 和 chat_moderation 表（修复迁移失败问题）
 - [x] 37 个 vitest 测试全部通过
 - [x] 修复 /competitions 页面 tRPC mutation 返回 HTML 而非 JSON 的错误（502 Bad Gateway 自动重试机制）
+- [x] Fix competition creation insert error (Drizzle ORM `default` keyword in prepared statements causing SQL failure) — switched to raw SQL via db.execute()
