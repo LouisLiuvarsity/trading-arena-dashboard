@@ -326,42 +326,28 @@ export const appRouter = router({
         }
 
         // Dashboard and Arena share the same database.
-        // For non-live transitions, update the DB directly (no Arena API needed).
-        // For "live" transition, call Arena API so it can start the match engine,
-        // switch market symbol, create the matches row, and send notifications.
+        // For Arena-managed transitions, call Arena API and let it decide the final status.
+        // For dashboard-only transitions (settling, completed), update DB directly.
         const arenaTransitionStatuses = ["announced", "registration_open", "registration_closed", "live", "cancelled"];
         if (arenaTransitionStatuses.includes(input.status)) {
           try {
-            // Use the local competition ID directly (shared DB = same IDs)
             await arenaClient.transitionCompetition(input.id, input.status);
           } catch (err) {
-            // If Arena API fails for non-critical transitions, fall back to direct DB update
             if (input.status === "live") {
-              // "live" transition is critical (Arena needs to start match engine)
               throw new Error(`Arena API 状态转换失败: ${(err as Error).message}`);
             }
             console.error(`[transition] Arena API failed for ${input.status}, falling back to direct DB:`, err);
             await updateCompetitionDirect(input.id, { status: input.status });
-            await createAdminLog({
-              adminUserId: ctx.user.id,
-              adminName: ctx.user.name || "Admin",
-              action: "competition_transition",
-              targetType: "competition",
-              targetId: String(input.id),
-              description: `比赛 #${input.id} 状态变更为 ${input.status} (直接写入)`,
-              metadata: JSON.stringify({ status: input.status, fallback: true }),
-            });
-            return { ok: true };
           }
         } else {
           // settling, completed — not supported by Arena transition API, update DB directly
           await updateCompetitionDirect(input.id, { status: input.status });
         }
 
-        // If Arena API succeeded, also sync status in local DB for consistency
-        if (arenaTransitionStatuses.includes(input.status)) {
-          await updateCompetitionDirect(input.id, { status: input.status });
-        }
+        // Re-read actual status from DB — Arena may have changed it
+        // (e.g., auto-cancel if accepted registrations < minParticipants)
+        const actual = await getCompetitionById(input.id);
+        const actualStatus = actual?.status || input.status;
 
         await createAdminLog({
           adminUserId: ctx.user.id,
@@ -369,9 +355,18 @@ export const appRouter = router({
           action: "competition_transition",
           targetType: "competition",
           targetId: String(input.id),
-          description: `比赛 #${input.id} 状态变更为 ${input.status}`,
-          metadata: JSON.stringify({ status: input.status }),
+          description: actualStatus !== input.status
+            ? `比赛 #${input.id} 请求变更为 ${input.status}，Arena 实际设为 ${actualStatus}`
+            : `比赛 #${input.id} 状态变更为 ${actualStatus}`,
+          metadata: JSON.stringify({ requested: input.status, actual: actualStatus }),
         });
+
+        if (actualStatus !== input.status) {
+          throw new Error(
+            `Arena 未接受状态变更为「${input.status}」，实际状态为「${actualStatus}」。` +
+            (actualStatus === "cancelled" ? "请检查是否有足够的「已通过」报名（非 pending 状态）。" : "")
+          );
+        }
         return { ok: true };
       }),
 
