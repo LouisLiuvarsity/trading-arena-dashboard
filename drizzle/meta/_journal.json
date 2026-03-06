@@ -29,6 +29,13 @@
       "when": 1772789822605,
       "tag": "0003_wide_mockingbird",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1772806677674,
+      "tag": "0004_smooth_beast",
+      "breakpoints": true
     }
   ]
 }
