@@ -398,13 +398,24 @@ export async function createSeasonDirect(input: {
 
   const now = Date.now();
   // Use raw SQL to avoid Drizzle ORM generating `default` keyword for autoincrement id
-  const result = await db.execute(sql`
-    INSERT INTO seasons (name, slug, status, startDate, endDate, pointsDecayFactor, archived, createdAt)
-    VALUES (${input.name}, ${input.slug}, ${"active"}, ${input.startDate}, ${input.endDate},
-            ${input.pointsDecayFactor ?? 0.8}, ${0}, ${now})
-  `);
-  const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
-  return Number(insertId);
+  try {
+    const result = await db.execute(sql`
+      INSERT INTO seasons (name, slug, status, startDate, endDate, pointsDecayFactor, archived, createdAt)
+      VALUES (${input.name}, ${input.slug}, ${"active"}, ${input.startDate}, ${input.endDate},
+              ${input.pointsDecayFactor ?? 0.8}, ${0}, ${now})
+    `);
+    const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
+    return Number(insertId);
+  } catch (err: any) {
+    const msg: string = err?.message || "";
+    if (msg.includes("Duplicate entry") && msg.includes("slug")) {
+      throw new Error(`赛季 slug「${input.slug}」已存在，请使用不同的 slug`);
+    }
+    if (msg.includes("Unknown column")) {
+      throw new Error(`数据库缺少必要的列，请重启服务以自动修复 schema`);
+    }
+    throw new Error(`创建赛季失败: ${msg.slice(0, 200)}`);
+  }
 }
 
 // ─── Competitions (Direct DB Write) ─────────────────────────────────────────
@@ -440,31 +451,42 @@ export async function createCompetitionDirect(input: {
   const now = Date.now();
   // Use raw SQL to avoid Drizzle ORM generating `default` keyword for autoincrement id,
   // which causes "Failed query" errors with mysql2/TiDB prepared statements
-  const result = await db.execute(sql`
-    INSERT INTO competitions (
-      seasonId, title, slug, description, competitionNumber, competitionType,
-      status, matchId, maxParticipants, minParticipants, registrationOpenAt,
-      registrationCloseAt, startTime, endTime, symbol, startingCapital,
-      maxTradesPerMatch, closeOnlySeconds, feeRate, prizePool, prizeTableJson,
-      pointsTableJson, requireMinSeasonPoints, requireMinTier, inviteOnly,
-      coverImageUrl, createdBy, archived, createdAt, updatedAt
-    ) VALUES (
-      ${input.seasonId}, ${input.title}, ${input.slug}, ${input.description ?? null},
-      ${input.competitionNumber}, ${input.competitionType ?? "regular"},
-      ${"draft"}, ${null}, ${input.maxParticipants ?? 50}, ${input.minParticipants ?? 5},
-      ${input.registrationOpenAt ?? null}, ${input.registrationCloseAt ?? null},
-      ${input.startTime}, ${input.endTime}, ${input.symbol ?? "SOLUSDT"},
-      ${input.startingCapital ?? 5000}, ${input.maxTradesPerMatch ?? 40},
-      ${input.closeOnlySeconds ?? 1800}, ${input.feeRate ?? 0.0005},
-      ${input.prizePool ?? 500}, ${null}, ${null},
-      ${input.requireMinSeasonPoints ?? 0}, ${input.requireMinTier ?? null},
-      ${input.inviteOnly ? 1 : 0}, ${input.coverImageUrl ?? null},
-      ${input.createdBy ?? null}, ${0}, ${now}, ${now}
-    )
-  `);
-  // db.execute returns [ResultSetHeader, FieldPacket[]]
-  const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
-  return Number(insertId);
+  try {
+    const result = await db.execute(sql`
+      INSERT INTO competitions (
+        seasonId, title, slug, description, competitionNumber, competitionType,
+        status, matchId, maxParticipants, minParticipants, registrationOpenAt,
+        registrationCloseAt, startTime, endTime, symbol, startingCapital,
+        maxTradesPerMatch, closeOnlySeconds, feeRate, prizePool, prizeTableJson,
+        pointsTableJson, requireMinSeasonPoints, requireMinTier, inviteOnly,
+        coverImageUrl, createdBy, archived, createdAt, updatedAt
+      ) VALUES (
+        ${input.seasonId}, ${input.title}, ${input.slug}, ${input.description ?? null},
+        ${input.competitionNumber}, ${input.competitionType ?? "regular"},
+        ${"draft"}, ${null}, ${input.maxParticipants ?? 50}, ${input.minParticipants ?? 5},
+        ${input.registrationOpenAt ?? null}, ${input.registrationCloseAt ?? null},
+        ${input.startTime}, ${input.endTime}, ${input.symbol ?? "SOLUSDT"},
+        ${input.startingCapital ?? 5000}, ${input.maxTradesPerMatch ?? 40},
+        ${input.closeOnlySeconds ?? 1800}, ${input.feeRate ?? 0.0005},
+        ${input.prizePool ?? 500}, ${null}, ${null},
+        ${input.requireMinSeasonPoints ?? 0}, ${input.requireMinTier ?? null},
+        ${input.inviteOnly ? 1 : 0}, ${input.coverImageUrl ?? null},
+        ${input.createdBy ?? null}, ${0}, ${now}, ${now}
+      )
+    `);
+    // db.execute returns [ResultSetHeader, FieldPacket[]]
+    const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
+    return Number(insertId);
+  } catch (err: any) {
+    const msg: string = err?.message || "";
+    if (msg.includes("Duplicate entry") && msg.includes("slug")) {
+      throw new Error(`比赛 slug「${input.slug}」已存在，请使用不同的 slug`);
+    }
+    if (msg.includes("Unknown column")) {
+      throw new Error(`数据库缺少必要的列（archived/coverImageUrl），请重启服务以自动修复 schema`);
+    }
+    throw new Error(`创建比赛失败: ${msg.slice(0, 200)}`);
+  }
 }
 
 export async function updateCompetitionDirect(
