@@ -27,6 +27,13 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   settling: ["completed"],
 };
 
+const USER_TIER_FILTERS = ["all", "iron", "bronze", "silver", "gold", "platinum", "diamond"] as const;
+const USER_STATUS_FILTERS = ["all", "active", "banned"] as const;
+const REGISTRATION_FILTER_STATUSES = ["all", "pending", "accepted", "rejected", "waitlisted", "withdrawn"] as const;
+const REGISTRATION_UPDATE_STATUSES = ["pending", "accepted", "rejected", "waitlisted"] as const;
+const CHAT_FILTER_STATUSES = ["all", "visible", "hidden", "deleted"] as const;
+const CHAT_UPDATE_STATUSES = ["visible", "hidden", "deleted"] as const;
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -116,8 +123,8 @@ export const appRouter = router({
         page: z.number().min(1).default(1),
         pageSize: z.number().min(1).max(100).default(12),
         search: z.string().optional(),
-        tier: z.string().optional(),
-        status: z.string().optional(),
+        tier: z.enum(USER_TIER_FILTERS).optional(),
+        status: z.enum(USER_STATUS_FILTERS).optional(),
         sortBy: z.string().optional(),
         sortOrder: z.enum(["asc", "desc"]).optional(),
       }))
@@ -170,14 +177,14 @@ export const appRouter = router({
     registrations: adminProcedure
       .input(z.object({
         competitionId: z.number(),
-        status: z.string().optional(),
+        status: z.enum(REGISTRATION_FILTER_STATUSES).optional(),
       }))
       .query(({ input }) => getCompetitionRegistrations(input.competitionId, input.status)),
 
     updateRegistration: adminProcedure
       .input(z.object({
         ids: z.array(z.number()),
-        status: z.string(),
+        status: z.enum(REGISTRATION_UPDATE_STATUSES),
       }))
       .mutation(async ({ input, ctx }) => {
         const result = await updateRegistrationStatus(input.ids, input.status, ctx.user.id);
@@ -362,7 +369,7 @@ export const appRouter = router({
         page: z.number().min(1).default(1),
         pageSize: z.number().min(1).max(100).default(15),
         competitionId: z.number().optional(),
-        status: z.string().optional(),
+        status: z.enum(CHAT_FILTER_STATUSES).optional(),
         search: z.string().optional(),
       }))
       .query(({ input }) => getChatMessages(input)),
@@ -370,7 +377,7 @@ export const appRouter = router({
     moderate: adminProcedure
       .input(z.object({
         messageId: z.string(),
-        status: z.string(),
+        status: z.enum(CHAT_UPDATE_STATUSES),
       }))
       .mutation(async ({ input, ctx }) => {
         const result = await moderateMessage(input.messageId, input.status, ctx.user.id, ctx.user.name || "Admin");
@@ -390,7 +397,7 @@ export const appRouter = router({
     batchModerate: adminProcedure
       .input(z.object({
         messageIds: z.array(z.string()),
-        status: z.string(),
+        status: z.enum(CHAT_UPDATE_STATUSES),
       }))
       .mutation(async ({ input, ctx }) => {
         const result = await batchModerateMessages(input.messageIds, input.status, ctx.user.id, ctx.user.name || "Admin");

@@ -4,13 +4,51 @@ import { InsertUser, users, arenaAccounts, userProfiles, competitions, competiti
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+const REGISTRATION_STATUSES = ["pending", "accepted", "rejected", "waitlisted", "withdrawn"] as const;
+const CHAT_MODERATION_STATUSES = ["visible", "hidden", "deleted"] as const;
+
+function getTierBounds(tier: string) {
+  switch (tier) {
+    case "iron":
+      return { min: 0, maxExclusive: 100 };
+    case "bronze":
+      return { min: 100, maxExclusive: 300 };
+    case "silver":
+      return { min: 300, maxExclusive: 600 };
+    case "gold":
+      return { min: 600, maxExclusive: 1000 };
+    case "platinum":
+      return { min: 1000, maxExclusive: 1500 };
+    case "diamond":
+      return { min: 1500, maxExclusive: null };
+    default:
+      return null;
+  }
+}
+
+function assertRegistrationStatus(
+  status: string,
+): asserts status is (typeof REGISTRATION_STATUSES)[number] {
+  if (!(REGISTRATION_STATUSES as readonly string[]).includes(status)) {
+    throw new Error(`Invalid registration status: ${status}`);
+  }
+}
+
+function assertChatModerationStatus(
+  status: string,
+): asserts status is (typeof CHAT_MODERATION_STATUSES)[number] {
+  if (!(CHAT_MODERATION_STATUSES as readonly string[]).includes(status)) {
+    throw new Error(`Invalid chat moderation status: ${status}`);
+  }
+}
 
 export async function getDb() {
   if (_db) return _db;
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is not configured");
+  const databaseUrl = process.env.DATABASE_URL || ENV.databaseUrl;
+  if (!databaseUrl) {
+    return null;
   }
-  _db = drizzle(process.env.DATABASE_URL);
+  _db = drizzle(databaseUrl);
   return _db;
 }
 
@@ -155,7 +193,13 @@ export async function getArenaUsers(opts: {
     );
   }
   if (tier && tier !== "all") {
-    // Tier is computed from seasonPoints, filter after query
+    const bounds = getTierBounds(tier);
+    if (bounds) {
+      conditions.push(sql`${arenaAccounts.seasonPoints} >= ${bounds.min}`);
+      if (bounds.maxExclusive !== null) {
+        conditions.push(sql`${arenaAccounts.seasonPoints} < ${bounds.maxExclusive}`);
+      }
+    }
   }
   if (status === "banned") {
     conditions.push(eq(arenaAccounts.role, "banned"));
@@ -542,6 +586,7 @@ export async function getCompetitionRegistrations(competitionId: number, statusF
 }
 
 export async function updateRegistrationStatus(ids: number[], status: string, reviewedBy: number) {
+  assertRegistrationStatus(status);
   const db = await getDb();
   if (!db) return false;
   await db
@@ -633,6 +678,7 @@ export async function getChatMessages(opts: {
 }
 
 export async function moderateMessage(messageId: string, status: string, moderatedBy: number, moderatedByName: string) {
+  assertChatModerationStatus(status);
   const db = await getDb();
   if (!db) return false;
 
@@ -653,6 +699,7 @@ export async function moderateMessage(messageId: string, status: string, moderat
 }
 
 export async function batchModerateMessages(messageIds: string[], status: string, moderatedBy: number, moderatedByName: string) {
+  assertChatModerationStatus(status);
   const db = await getDb();
   if (!db) return false;
 
@@ -830,11 +877,11 @@ export async function getRegistrationTrend(days = 14) {
   const since = Date.now() - days * 86400000;
   const rows = await db
     .select({
-      createdAt: arenaAccounts.createdAt,
+      appliedAt: competitionRegistrations.appliedAt,
     })
-    .from(arenaAccounts)
-    .where(sql`${arenaAccounts.createdAt} > ${since}`)
-    .orderBy(asc(arenaAccounts.createdAt));
+    .from(competitionRegistrations)
+    .where(sql`${competitionRegistrations.appliedAt} > ${since}`)
+    .orderBy(asc(competitionRegistrations.appliedAt));
 
   // Group by day
   const dayMap = new Map<string, number>();
@@ -845,7 +892,7 @@ export async function getRegistrationTrend(days = 14) {
   }
 
   for (const r of rows) {
-    const d = new Date(r.createdAt);
+    const d = new Date(r.appliedAt);
     const key = `${d.getMonth() + 1}月${d.getDate()}日`;
     dayMap.set(key, (dayMap.get(key) || 0) + 1);
   }
@@ -996,6 +1043,51 @@ export async function archiveSeason(id: number, archived: boolean) {
 
 // ─── Permanent Delete ────────────────────────────────────────────────────────
 
+async function deleteCompetitionCascadeWithDb(
+  dbOrTx: any,
+  id: number,
+): Promise<{
+  registrations: number;
+  matchResultRows: number;
+  tradeRows: number;
+  chatRows: number;
+}> {
+  const [comp] = await dbOrTx
+    .select({ matchId: competitions.matchId })
+    .from(competitions)
+    .where(eq(competitions.id, id))
+    .limit(1);
+  if (!comp) throw new Error(`Competition #${id} not found`);
+
+  let tradeRows = 0;
+  if (comp.matchId) {
+    const tradeResult = await dbOrTx.delete(trades).where(eq(trades.matchId, comp.matchId));
+    tradeRows = tradeResult[0].affectedRows ?? 0;
+  }
+
+  const mrResult = await dbOrTx.delete(matchResults).where(eq(matchResults.competitionId, id));
+  const matchResultRows = mrResult[0].affectedRows ?? 0;
+
+  const regResult = await dbOrTx.delete(competitionRegistrations).where(eq(competitionRegistrations.competitionId, id));
+  const registrations = regResult[0].affectedRows ?? 0;
+
+  const msgs = await dbOrTx
+    .select({ id: chatMessages.id })
+    .from(chatMessages)
+    .where(eq(chatMessages.competitionId, id));
+  let chatRows = 0;
+  if (msgs.length > 0) {
+    const msgIds = msgs.map((m: { id: string }) => m.id);
+    await dbOrTx.delete(chatModeration).where(inArray(chatModeration.chatMessageId, msgIds));
+    const chatResult = await dbOrTx.delete(chatMessages).where(eq(chatMessages.competitionId, id));
+    chatRows = chatResult[0].affectedRows ?? 0;
+  }
+
+  await dbOrTx.delete(competitions).where(eq(competitions.id, id));
+
+  return { registrations, matchResultRows, tradeRows, chatRows };
+}
+
 export async function deleteCompetitionCascade(id: number): Promise<{
   registrations: number;
   matchResultRows: number;
@@ -1005,60 +1097,19 @@ export async function deleteCompetitionCascade(id: number): Promise<{
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Get competition to find matchId
-  const [comp] = await db.select({ matchId: competitions.matchId }).from(competitions).where(eq(competitions.id, id)).limit(1);
-  if (!comp) throw new Error(`Competition #${id} not found`);
-
-  // Wrap all deletes in a transaction for atomicity
-  const result = await db.transaction(async (tx) => {
-    // 1. Delete trades via matchId
-    let tradeRows = 0;
-    if (comp.matchId) {
-      const tradeResult = await tx.delete(trades).where(eq(trades.matchId, comp.matchId));
-      tradeRows = tradeResult[0].affectedRows ?? 0;
-    }
-
-    // 2. Delete match results
-    const mrResult = await tx.delete(matchResults).where(eq(matchResults.competitionId, id));
-    const matchResultRows = mrResult[0].affectedRows ?? 0;
-
-    // 3. Delete registrations
-    const regResult = await tx.delete(competitionRegistrations).where(eq(competitionRegistrations.competitionId, id));
-    const registrations = regResult[0].affectedRows ?? 0;
-
-    // 4. Delete chat messages + their moderation records
-    const msgs = await tx.select({ id: chatMessages.id }).from(chatMessages).where(eq(chatMessages.competitionId, id));
-    let chatRows = 0;
-    if (msgs.length > 0) {
-      const msgIds = msgs.map(m => m.id);
-      await tx.delete(chatModeration).where(inArray(chatModeration.chatMessageId, msgIds));
-      const chatResult = await tx.delete(chatMessages).where(eq(chatMessages.competitionId, id));
-      chatRows = chatResult[0].affectedRows ?? 0;
-    }
-
-    // 5. Delete competition itself
-    await tx.delete(competitions).where(eq(competitions.id, id));
-
-    return { registrations, matchResultRows, tradeRows, chatRows };
-  });
-
-  return result;
+  return db.transaction(async (tx) => deleteCompetitionCascadeWithDb(tx, id));
 }
 
 export async function deleteSeasonCascade(id: number): Promise<{ competitionsDeleted: number }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Find all competitions in this season
-  const comps = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.seasonId, id));
-
-  // Cascade delete each competition (each already uses its own transaction)
-  for (const comp of comps) {
-    await deleteCompetitionCascade(comp.id);
-  }
-
-  // Delete the season itself
-  await db.delete(seasons).where(eq(seasons.id, id));
-
-  return { competitionsDeleted: comps.length };
+  return db.transaction(async (tx) => {
+    const comps = await tx.select({ id: competitions.id }).from(competitions).where(eq(competitions.seasonId, id));
+    for (const comp of comps) {
+      await deleteCompetitionCascadeWithDb(tx, comp.id);
+    }
+    await tx.delete(seasons).where(eq(seasons.id, id));
+    return { competitionsDeleted: comps.length };
+  });
 }

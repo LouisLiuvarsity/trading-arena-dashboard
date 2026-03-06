@@ -15,11 +15,13 @@ import StatusBadge from "@/components/StatusBadge";
 import StatCard from "@/components/StatCard";
 import { getTierFromPoints, formatDate, downloadCSV, TIER_CONFIG, type RankTier } from "@/lib/constants";
 
+type UserStatusFilter = "all" | "active" | "banned";
+
 export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -142,7 +144,7 @@ export default function UsersPage() {
 
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setStatusFilter(e.target.value as UserStatusFilter); setPage(1); }}
           className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
         >
           <option value="all">全部状态</option>

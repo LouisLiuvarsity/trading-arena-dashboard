@@ -13,9 +13,12 @@ import StatusBadge from "@/components/StatusBadge";
 import TierBadge from "@/components/TierBadge";
 import { formatDate, downloadCSV, getTierFromPoints } from "@/lib/constants";
 
+type ChatFilterStatus = "all" | "visible" | "hidden" | "deleted";
+type ChatModerationStatus = Exclude<ChatFilterStatus, "all">;
+
 export default function ChatPage() {
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ChatFilterStatus>("all");
   const [compFilter, setCompFilter] = useState<number | undefined>(undefined);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -76,13 +79,13 @@ export default function ChatPage() {
     }
   };
 
-  const handleModerate = (messageId: string, status: string) => {
+  const handleModerate = (messageId: string, status: ChatModerationStatus) => {
     moderateMutation.mutate({ messageId, status });
     const label = status === "hidden" ? "已隐藏" : status === "deleted" ? "已删除" : "已恢复";
     toast.success(`消息${label}`);
   };
 
-  const handleBatchModerate = (status: string) => {
+  const handleBatchModerate = (status: ChatModerationStatus) => {
     batchModerateMutation.mutate({ messageIds: Array.from(selectedIds), status });
   };
 
@@ -149,7 +152,7 @@ export default function ChatPage() {
 
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setStatusFilter(e.target.value as ChatFilterStatus); setPage(1); }}
           className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
         >
           <option value="all">全部状态</option>
