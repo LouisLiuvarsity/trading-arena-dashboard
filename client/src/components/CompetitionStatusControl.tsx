@@ -38,6 +38,8 @@ export default function CompetitionStatusControl({ competitionId, currentStatus,
     },
     onError: (err: any) => {
       toast.error(err.message);
+      // Refresh list — Arena may have changed the status independently
+      utils.competitions.list.invalidate();
       setConfirmTarget(null);
     },
   });
