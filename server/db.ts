@@ -1,11 +1,43 @@
 import { eq, and, like, or, desc, asc, sql, count, inArray, SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, arenaAccounts, userProfiles, competitions, competitionRegistrations, matchResults, chatMessages, chatModeration, trades, seasons, institutions, behaviorEvents, adminLogs } from "../drizzle/schema";
+import {
+  InsertUser,
+  users,
+  arenaAccounts,
+  userProfiles,
+  competitions,
+  competitionRegistrations,
+  matchResults,
+  chatMessages,
+  chatModeration,
+  trades,
+  seasons,
+  institutions,
+  behaviorEvents,
+  adminLogs,
+  matches,
+  positions,
+  predictions,
+  notifications,
+  userAchievements,
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 const REGISTRATION_STATUSES = ["pending", "accepted", "rejected", "waitlisted", "withdrawn"] as const;
 const CHAT_MODERATION_STATUSES = ["visible", "hidden", "deleted"] as const;
+
+type CompetitionCleanupStats = {
+  registrations: number;
+  matchResultRows: number;
+  tradeRows: number;
+  chatRows: number;
+  positionRows: number;
+  predictionRows: number;
+  notificationRows: number;
+  achievementRows: number;
+  matchRows: number;
+};
 
 function getTierBounds(tier: string) {
   switch (tier) {
@@ -40,6 +72,10 @@ function assertChatModerationStatus(
   if (!(CHAT_MODERATION_STATUSES as readonly string[]).includes(status)) {
     throw new Error(`Invalid chat moderation status: ${status}`);
   }
+}
+
+function getAffectedRows(result: any): number {
+  return result?.[0]?.affectedRows ?? result?.affectedRows ?? 0;
 }
 
 export async function getDb() {
@@ -127,7 +163,7 @@ export async function getSeasons() {
     .select({
       seasonId: competitions.seasonId,
       total: count(),
-      completed: sql<number>`SUM(CASE WHEN ${competitions.status} = 'completed' THEN 1 ELSE 0 END)`,
+      completed: sql<number>`SUM(CASE WHEN ${competitions.status} IN ('completed', 'ended_early') THEN 1 ELSE 0 END)`,
       unarchived: sql<number>`SUM(CASE WHEN ${competitions.archived} = 0 THEN 1 ELSE 0 END)`,
     })
     .from(competitions)
@@ -810,7 +846,7 @@ export async function getCompetitionTrends() {
       status: competitions.status,
     })
     .from(competitions)
-    .where(sql`${competitions.status} IN ('completed', 'live', 'settling')`)
+    .where(sql`${competitions.status} IN ('completed', 'ended_early', 'live', 'settling')`)
     .orderBy(asc(competitions.competitionNumber));
 
   const result = [];
@@ -1071,11 +1107,128 @@ export async function getAllAdminLogsForExport() {
 
 // ─── Archive ─────────────────────────────────────────────────────────────────
 
-export async function archiveCompetition(id: number, archived: boolean) {
+async function clearCompetitionAssociatedDataWithDb(
+  dbOrTx: any,
+  id: number,
+  opts: { keepCompetition: boolean },
+): Promise<CompetitionCleanupStats> {
+  const [comp] = await dbOrTx
+    .select({ matchId: competitions.matchId })
+    .from(competitions)
+    .where(eq(competitions.id, id))
+    .limit(1);
+  if (!comp) {
+    throw new Error(`Competition #${id} not found`);
+  }
+
+  const positionRows = getAffectedRows(
+    await dbOrTx.delete(positions).where(eq(positions.competitionId, id))
+  );
+  const notificationRows = getAffectedRows(
+    await dbOrTx.delete(notifications).where(eq(notifications.competitionId, id))
+  );
+  const achievementRows = getAffectedRows(
+    await dbOrTx.delete(userAchievements).where(eq(userAchievements.competitionId, id))
+  );
+  const matchResultRows = getAffectedRows(
+    await dbOrTx.delete(matchResults).where(eq(matchResults.competitionId, id))
+  );
+  const registrations = getAffectedRows(
+    await dbOrTx.delete(competitionRegistrations).where(eq(competitionRegistrations.competitionId, id))
+  );
+
+  const msgs = await dbOrTx
+    .select({ id: chatMessages.id })
+    .from(chatMessages)
+    .where(eq(chatMessages.competitionId, id));
+  let chatRows = 0;
+  if (msgs.length > 0) {
+    const msgIds = msgs.map((m: { id: string }) => m.id);
+    await dbOrTx.delete(chatModeration).where(inArray(chatModeration.chatMessageId, msgIds));
+    chatRows = getAffectedRows(
+      await dbOrTx.delete(chatMessages).where(eq(chatMessages.competitionId, id))
+    );
+  }
+
+  let predictionRows = 0;
+  let tradeRows = 0;
+  let matchRows = 0;
+  if (comp.matchId) {
+    predictionRows = getAffectedRows(
+      await dbOrTx.delete(predictions).where(eq(predictions.matchId, comp.matchId))
+    );
+    tradeRows = getAffectedRows(
+      await dbOrTx.delete(trades).where(eq(trades.matchId, comp.matchId))
+    );
+  }
+
+  if (opts.keepCompetition) {
+    await dbOrTx
+      .update(competitions)
+      .set({ archived: 1, matchId: null, updatedAt: Date.now() })
+      .where(eq(competitions.id, id));
+  } else {
+    await dbOrTx.delete(competitions).where(eq(competitions.id, id));
+  }
+
+  if (comp.matchId) {
+    matchRows = getAffectedRows(
+      await dbOrTx.delete(matches).where(eq(matches.id, comp.matchId))
+    );
+  }
+
+  return {
+    registrations,
+    matchResultRows,
+    tradeRows,
+    chatRows,
+    positionRows,
+    predictionRows,
+    notificationRows,
+    achievementRows,
+    matchRows,
+  };
+}
+
+export async function archiveCompetition(id: number, archived: boolean): Promise<{
+  success: boolean;
+  purged: boolean;
+  stats?: CompetitionCleanupStats;
+}> {
   const db = await getDb();
-  if (!db) return false;
-  await db.update(competitions).set({ archived: archived ? 1 : 0, updatedAt: Date.now() }).where(eq(competitions.id, id));
-  return true;
+  if (!db) return { success: false, purged: false };
+
+  return db.transaction(async (tx) => {
+    const [comp] = await tx
+      .select({ status: competitions.status, archived: competitions.archived })
+      .from(competitions)
+      .where(eq(competitions.id, id))
+      .limit(1);
+    if (!comp) {
+      throw new Error("比赛不存在");
+    }
+
+    if (!archived && comp.status === "ended_early" && comp.archived === 1) {
+      throw new Error("提前结束并已归档清理的比赛不能取消归档");
+    }
+
+    if (archived && comp.status === "ended_early") {
+      const stats = await clearCompetitionAssociatedDataWithDb(tx, id, { keepCompetition: true });
+      return { success: true, purged: true, stats } as const;
+    }
+    if (archived && comp.archived === 1) {
+      return { success: true, purged: false } as const;
+    }
+    if (!archived && comp.archived !== 1) {
+      return { success: true, purged: false } as const;
+    }
+
+    await tx
+      .update(competitions)
+      .set({ archived: archived ? 1 : 0, updatedAt: Date.now() })
+      .where(eq(competitions.id, id));
+    return { success: true, purged: false } as const;
+  });
 }
 
 export async function archiveSeason(id: number, archived: boolean) {
@@ -1090,54 +1243,11 @@ export async function archiveSeason(id: number, archived: boolean) {
 async function deleteCompetitionCascadeWithDb(
   dbOrTx: any,
   id: number,
-): Promise<{
-  registrations: number;
-  matchResultRows: number;
-  tradeRows: number;
-  chatRows: number;
-}> {
-  const [comp] = await dbOrTx
-    .select({ matchId: competitions.matchId })
-    .from(competitions)
-    .where(eq(competitions.id, id))
-    .limit(1);
-  if (!comp) throw new Error(`Competition #${id} not found`);
-
-  let tradeRows = 0;
-  if (comp.matchId) {
-    const tradeResult = await dbOrTx.delete(trades).where(eq(trades.matchId, comp.matchId));
-    tradeRows = tradeResult[0].affectedRows ?? 0;
-  }
-
-  const mrResult = await dbOrTx.delete(matchResults).where(eq(matchResults.competitionId, id));
-  const matchResultRows = mrResult[0].affectedRows ?? 0;
-
-  const regResult = await dbOrTx.delete(competitionRegistrations).where(eq(competitionRegistrations.competitionId, id));
-  const registrations = regResult[0].affectedRows ?? 0;
-
-  const msgs = await dbOrTx
-    .select({ id: chatMessages.id })
-    .from(chatMessages)
-    .where(eq(chatMessages.competitionId, id));
-  let chatRows = 0;
-  if (msgs.length > 0) {
-    const msgIds = msgs.map((m: { id: string }) => m.id);
-    await dbOrTx.delete(chatModeration).where(inArray(chatModeration.chatMessageId, msgIds));
-    const chatResult = await dbOrTx.delete(chatMessages).where(eq(chatMessages.competitionId, id));
-    chatRows = chatResult[0].affectedRows ?? 0;
-  }
-
-  await dbOrTx.delete(competitions).where(eq(competitions.id, id));
-
-  return { registrations, matchResultRows, tradeRows, chatRows };
+): Promise<CompetitionCleanupStats> {
+  return clearCompetitionAssociatedDataWithDb(dbOrTx, id, { keepCompetition: false });
 }
 
-export async function deleteCompetitionCascade(id: number): Promise<{
-  registrations: number;
-  matchResultRows: number;
-  tradeRows: number;
-  chatRows: number;
-}> {
+export async function deleteCompetitionCascade(id: number): Promise<CompetitionCleanupStats> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 

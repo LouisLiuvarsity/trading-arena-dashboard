@@ -99,6 +99,33 @@ export const competitions = mysqlTable("competitions", {
   index("idx_comp_archived").on(table.archived),
 ]);
 
+/** Trading matches (24h competition rounds) */
+export const matches = mysqlTable("matches", {
+  id: int("id").autoincrement().primaryKey(),
+  matchNumber: int("matchNumber").notNull(),
+  matchType: varchar("matchType", { length: 16 }).notNull().default("regular"),
+  startTime: bigint("startTime", { mode: "number" }).notNull(),
+  endTime: bigint("endTime", { mode: "number" }).notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("active"),
+});
+
+/** Open positions (one per user at a time) */
+export const positions = mysqlTable("positions", {
+  id: int("id").autoincrement().primaryKey(),
+  arenaAccountId: int("arenaAccountId").notNull().unique(),
+  competitionId: int("competitionId"),
+  direction: varchar("direction", { length: 8 }).notNull(),
+  size: double("size").notNull(),
+  entryPrice: double("entryPrice").notNull(),
+  openTime: bigint("openTime", { mode: "number" }).notNull(),
+  takeProfit: double("takeProfit"),
+  stopLoss: double("stopLoss"),
+  tradeNumber: int("tradeNumber").notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
+}, (table) => [
+  index("idx_positions_comp").on(table.competitionId),
+]);
+
 /** Competition registrations */
 export const competitionRegistrations = mysqlTable("competition_registrations", {
   id: int("id").autoincrement().primaryKey(),
@@ -181,6 +208,27 @@ export const trades = mysqlTable("trades", {
   index("idx_trades_close_time").on(table.closeTime),
 ]);
 
+/** Hourly price predictions */
+export const predictions = mysqlTable("predictions", {
+  id: int("id").autoincrement().primaryKey(),
+  arenaAccountId: int("arenaAccountId").notNull(),
+  matchId: int("matchId").notNull(),
+  roundKey: varchar("roundKey", { length: 32 }).notNull(),
+  direction: varchar("direction", { length: 8 }).notNull(),
+  confidence: int("confidence").notNull().default(3),
+  priceAtPrediction: double("priceAtPrediction").notNull(),
+  priceAtResolution: double("priceAtResolution"),
+  correct: int("correct"),
+  actualPositionDirection: varchar("actualPositionDirection", { length: 8 }),
+  submittedAt: bigint("submittedAt", { mode: "number" }).notNull(),
+  resolvedAt: bigint("resolvedAt", { mode: "number" }),
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+}, (table) => [
+  index("idx_predictions_account_match").on(table.arenaAccountId, table.matchId),
+  index("idx_predictions_round").on(table.roundKey),
+  index("idx_predictions_status").on(table.status),
+]);
+
 /** User profiles */
 export const userProfiles = mysqlTable("user_profiles", {
   arenaAccountId: int("arenaAccountId").primaryKey(),
@@ -233,6 +281,36 @@ export const behaviorEvents = mysqlTable("behavior_events", {
 }, (table) => [
   index("idx_behavior_account").on(table.arenaAccountId),
   index("idx_behavior_timestamp").on(table.timestamp),
+]);
+
+/** In-app notifications */
+export const notifications = mysqlTable("notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  arenaAccountId: int("arenaAccountId").notNull(),
+  type: varchar("type", { length: 32 }).notNull(),
+  title: varchar("title", { length: 256 }).notNull(),
+  message: text("message"),
+  competitionId: int("competitionId"),
+  actionUrl: varchar("actionUrl", { length: 256 }),
+  isRead: int("isRead").notNull().default(0),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+}, (table) => [
+  index("idx_notif_account_read").on(table.arenaAccountId, table.isRead, table.createdAt),
+  index("idx_notif_comp").on(table.competitionId),
+]);
+
+/** User achievements (persistent) */
+export const userAchievements = mysqlTable("user_achievements", {
+  id: int("id").autoincrement().primaryKey(),
+  arenaAccountId: int("arenaAccountId").notNull(),
+  achievementKey: varchar("achievementKey", { length: 64 }).notNull(),
+  unlockedAt: bigint("unlockedAt", { mode: "number" }).notNull(),
+  competitionId: int("competitionId"),
+  metadata: text("metadata"),
+}, (table) => [
+  uniqueIndex("idx_ach_unique").on(table.arenaAccountId, table.achievementKey),
+  index("idx_ach_account").on(table.arenaAccountId),
+  index("idx_ach_comp").on(table.competitionId),
 ]);
 
 // ─── Admin Dashboard Specific Tables ────────────────────────────────────────

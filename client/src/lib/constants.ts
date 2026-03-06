@@ -5,7 +5,7 @@
 
 export type RankTier = "iron" | "bronze" | "silver" | "gold" | "platinum" | "diamond";
 export type RegistrationStatus = "pending" | "accepted" | "rejected" | "waitlisted" | "withdrawn";
-export type CompetitionStatus = "draft" | "announced" | "registration_open" | "registration_closed" | "live" | "settling" | "completed" | "cancelled";
+export type CompetitionStatus = "draft" | "announced" | "registration_open" | "registration_closed" | "live" | "settling" | "completed" | "ended_early" | "cancelled";
 export type CompetitionType = "regular" | "grand_final" | "special" | "practice";
 export type ChatMessageStatus = "visible" | "hidden" | "deleted";
 
@@ -31,6 +31,7 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   live: { label: "进行中", color: "#0ECB81" },
   settling: { label: "结算中", color: "#F0B90B" },
   completed: { label: "已结束", color: "#848E9C" },
+  ended_early: { label: "提前结束", color: "#FF6B35" },
   cancelled: { label: "已取消", color: "#F6465D" },
   visible: { label: "可见", color: "#0ECB81" },
   hidden: { label: "已隐藏", color: "#F0B90B" },
@@ -53,8 +54,7 @@ export const VALID_TRANSITIONS: Record<string, CompetitionStatus[]> = {
   announced: ["registration_open", "cancelled"],
   registration_open: ["registration_closed", "cancelled"],
   registration_closed: ["live", "cancelled"],
-  live: ["settling"],
-  settling: ["completed"],
+  live: ["ended_early"],
 };
 
 /** Compute tier from season points */

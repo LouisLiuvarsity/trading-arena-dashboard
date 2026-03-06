@@ -24,8 +24,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   announced: ["registration_open", "cancelled"],
   registration_open: ["registration_closed", "cancelled"],
   registration_closed: ["live", "cancelled"],
-  live: ["settling"],
-  settling: ["completed"],
+  live: ["ended_early"],
 };
 
 const USER_TIER_FILTERS = ["all", "iron", "bronze", "silver", "gold", "platinum", "diamond"] as const;
@@ -91,7 +90,7 @@ export const appRouter = router({
             description: `${input.archived ? "归档" : "取消归档"}赛季 #${input.id}`,
           });
         }
-        return { success: result };
+        return result;
       }),
 
     delete: adminProcedure
@@ -314,7 +313,7 @@ export const appRouter = router({
     transition: adminProcedure
       .input(z.object({
         id: z.number().positive(),
-        status: z.enum(["announced", "registration_open", "registration_closed", "live", "settling", "completed", "cancelled"]),
+        status: z.enum(["announced", "registration_open", "registration_closed", "live", "ended_early", "cancelled"]),
       }))
       .mutation(async ({ input, ctx }) => {
         // Server-side state machine validation
@@ -326,22 +325,19 @@ export const appRouter = router({
         }
 
         // Dashboard and Arena share the same database.
-        // For Arena-managed transitions, call Arena API and let it decide the final status.
-        // For dashboard-only transitions (settling, completed), update DB directly.
-        const arenaTransitionStatuses = ["announced", "registration_open", "registration_closed", "live", "cancelled"];
+        // Start/end transitions must go through Arena so engine-side logic runs.
+        const arenaTransitionStatuses = ["announced", "registration_open", "registration_closed", "live", "ended_early", "cancelled"];
+        const noFallbackStatuses = new Set(["live", "ended_early"]);
         if (arenaTransitionStatuses.includes(input.status)) {
           try {
             await arenaClient.transitionCompetition(input.id, input.status);
           } catch (err) {
-            if (input.status === "live") {
+            if (noFallbackStatuses.has(input.status)) {
               throw new Error(`Arena API 状态转换失败: ${(err as Error).message}`);
             }
             console.error(`[transition] Arena API failed for ${input.status}, falling back to direct DB:`, err);
             await updateCompetitionDirect(input.id, { status: input.status });
           }
-        } else {
-          // settling, completed — not supported by Arena transition API, update DB directly
-          await updateCompetitionDirect(input.id, { status: input.status });
         }
 
         // Re-read actual status from DB — Arena may have changed it
@@ -440,17 +436,24 @@ export const appRouter = router({
       .input(z.object({ id: z.number().positive(), archived: z.boolean() }))
       .mutation(async ({ input, ctx }) => {
         const result = await archiveCompetition(input.id, input.archived);
-        if (result) {
+        if (result.success) {
           await createAdminLog({
             adminUserId: ctx.user.id,
             adminName: ctx.user.name || "Admin",
             action: input.archived ? "competition_archive" : "competition_unarchive",
             targetType: "competition",
             targetId: String(input.id),
-            description: `${input.archived ? "归档" : "取消归档"}比赛 #${input.id}`,
+            description: result.purged
+              ? `归档并清理比赛 #${input.id}`
+              : `${input.archived ? "归档" : "取消归档"}比赛 #${input.id}`,
+            metadata: JSON.stringify({
+              archived: input.archived,
+              purged: result.purged,
+              stats: result.stats ?? null,
+            }),
           });
         }
-        return { success: result };
+        return result;
       }),
 
     delete: adminProcedure
@@ -468,7 +471,7 @@ export const appRouter = router({
           action: "competition_delete",
           targetType: "competition",
           targetId: String(input.id),
-          description: `永久删除比赛 #${input.id}（报名 ${stats.registrations}、结果 ${stats.matchResultRows}、交易 ${stats.tradeRows}、聊天 ${stats.chatRows} 条）`,
+          description: `永久删除比赛 #${input.id}（报名 ${stats.registrations}、结果 ${stats.matchResultRows}、仓位 ${stats.positionRows}、预测 ${stats.predictionRows}、交易 ${stats.tradeRows}、通知 ${stats.notificationRows}、成就 ${stats.achievementRows}、聊天 ${stats.chatRows}、场次 ${stats.matchRows} 条）`,
           metadata: JSON.stringify(stats),
         });
         return { success: true, ...stats };

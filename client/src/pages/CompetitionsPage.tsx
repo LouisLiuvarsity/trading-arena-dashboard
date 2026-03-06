@@ -53,20 +53,29 @@ export default function CompetitionsPage() {
   });
 
   const archiveMutation = trpc.competitions.archive.useMutation({
-    onSuccess: (_data, variables) => {
-      toast.success(variables.archived ? "比赛已归档" : "比赛已取消归档");
+    onSuccess: (data, variables) => {
+      toast.success(
+        data.purged
+          ? "比赛已归档并清理关联数据"
+          : variables.archived
+            ? "比赛已归档"
+            : "比赛已取消归档"
+      );
       utils.competitions.list.invalidate();
       utils.seasons.list.invalidate();
+      utils.stats.platform.invalidate();
+      utils.stats.competitionTrends.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
   const deleteMutation = trpc.competitions.delete.useMutation({
     onSuccess: (data) => {
-      toast.success(`比赛已永久删除（清除报名 ${data.registrations}、结果 ${data.matchResultRows}、交易 ${data.tradeRows}、聊天 ${data.chatRows} 条）`);
+      toast.success(`比赛已永久删除（报名 ${data.registrations}、结果 ${data.matchResultRows}、仓位 ${data.positionRows}、预测 ${data.predictionRows}、交易 ${data.tradeRows}、通知 ${data.notificationRows}、成就 ${data.achievementRows}、聊天 ${data.chatRows}、场次 ${data.matchRows} 条）`);
       utils.competitions.list.invalidate();
       utils.seasons.list.invalidate();
       utils.stats.platform.invalidate();
+      utils.stats.competitionTrends.invalidate();
       setConfirmDeleteId(null);
     },
     onError: (err: any) => { toast.error(err.message); setConfirmDeleteId(null); },
@@ -197,6 +206,7 @@ export default function CompetitionsPage() {
         {filteredCompetitions.map((comp) => {
           const typeConfig = COMP_TYPE_CONFIG[comp.competitionType as CompetitionType];
           const isExpanded = expandedCompId === comp.id;
+          const isPurgedEndedEarly = comp.status === "ended_early" && comp.archived === 1;
 
           return (
             <motion.div
@@ -252,12 +262,16 @@ export default function CompetitionsPage() {
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); archiveMutation.mutate({ id: comp.id, archived: comp.archived !== 1 }); }}
-                      disabled={archiveMutation.isPending}
-                      className="p-1.5 rounded-md hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                      title={comp.archived === 1 ? "取消归档" : "归档"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isPurgedEndedEarly) return;
+                        archiveMutation.mutate({ id: comp.id, archived: comp.archived !== 1 });
+                      }}
+                      disabled={archiveMutation.isPending || isPurgedEndedEarly}
+                      className="p-1.5 rounded-md hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={isPurgedEndedEarly ? "提前结束并已归档清理，不可恢复" : comp.archived === 1 ? "取消归档" : "归档"}
                     >
-                      {comp.archived === 1 ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                      {isPurgedEndedEarly ? <Archive className="w-4 h-4" /> : comp.archived === 1 ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                     </button>
                     {comp.archived === 1 && (
                       <button
@@ -484,6 +498,8 @@ export default function CompetitionsPage() {
                 <li>比赛本身及其配置</li>
                 <li>所有报名记录</li>
                 <li>所有比赛结果与排名</li>
+                <li>所有用户持仓与场次数据</li>
+                <li>所有预测、通知与成就记录</li>
                 <li>所有交易记录</li>
                 <li>所有比赛聊天消息</li>
               </ul>
