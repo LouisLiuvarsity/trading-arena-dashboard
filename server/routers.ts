@@ -325,44 +325,55 @@ export const appRouter = router({
         }
 
         // Dashboard and Arena share the same database.
-        // Start/end transitions must go through Arena so engine-side logic runs.
-        const arenaTransitionStatuses = ["announced", "registration_open", "registration_closed", "live", "ended_early", "cancelled"];
-        const noFallbackStatuses = new Set(["live", "ended_early"]);
-        if (arenaTransitionStatuses.includes(input.status)) {
+        // Only "live" and "ended_early" need Arena engine (match creation, market switching).
+        // All other transitions (announced, registration_open, etc.) are just DB status updates.
+        const arenaEngineStatuses = new Set(["live", "ended_early"]);
+
+        if (arenaEngineStatuses.has(input.status)) {
+          // These transitions MUST go through Arena API — no fallback
           try {
             await arenaClient.transitionCompetition(input.id, input.status);
           } catch (err) {
-            if (noFallbackStatuses.has(input.status)) {
-              throw new Error(`Arena API 状态转换失败: ${(err as Error).message}`);
-            }
-            console.error(`[transition] Arena API failed for ${input.status}, falling back to direct DB:`, err);
-            await updateCompetitionDirect(input.id, { status: input.status });
+            throw new Error(`Arena API 状态转换失败: ${(err as Error).message}`);
           }
+
+          // Re-read actual status from DB — Arena may have changed it
+          const actual = await getCompetitionById(input.id);
+          const actualStatus = actual?.status || input.status;
+
+          await createAdminLog({
+            adminUserId: ctx.user.id,
+            adminName: ctx.user.name || "Admin",
+            action: "competition_transition",
+            targetType: "competition",
+            targetId: String(input.id),
+            description: actualStatus !== input.status
+              ? `比赛 #${input.id} 请求变更为 ${input.status}，Arena 实际设为 ${actualStatus}`
+              : `比赛 #${input.id} 状态变更为 ${actualStatus}`,
+            metadata: JSON.stringify({ requested: input.status, actual: actualStatus }),
+          });
+
+          if (actualStatus !== input.status) {
+            throw new Error(
+              `Arena 未接受状态变更为「${input.status}」，实际状态为「${actualStatus}」。` +
+              (actualStatus === "cancelled" ? "请检查是否有足够的「已通过」报名（非 pending 状态）。" : "")
+            );
+          }
+        } else {
+          // For non-engine transitions, directly update the database
+          await updateCompetitionDirect(input.id, { status: input.status });
+
+          await createAdminLog({
+            adminUserId: ctx.user.id,
+            adminName: ctx.user.name || "Admin",
+            action: "competition_transition",
+            targetType: "competition",
+            targetId: String(input.id),
+            description: `比赛 #${input.id} 状态变更为 ${input.status}`,
+            metadata: JSON.stringify({ requested: input.status, actual: input.status }),
+          });
         }
 
-        // Re-read actual status from DB — Arena may have changed it
-        // (e.g., auto-cancel if accepted registrations < minParticipants)
-        const actual = await getCompetitionById(input.id);
-        const actualStatus = actual?.status || input.status;
-
-        await createAdminLog({
-          adminUserId: ctx.user.id,
-          adminName: ctx.user.name || "Admin",
-          action: "competition_transition",
-          targetType: "competition",
-          targetId: String(input.id),
-          description: actualStatus !== input.status
-            ? `比赛 #${input.id} 请求变更为 ${input.status}，Arena 实际设为 ${actualStatus}`
-            : `比赛 #${input.id} 状态变更为 ${actualStatus}`,
-          metadata: JSON.stringify({ requested: input.status, actual: actualStatus }),
-        });
-
-        if (actualStatus !== input.status) {
-          throw new Error(
-            `Arena 未接受状态变更为「${input.status}」，实际状态为「${actualStatus}」。` +
-            (actualStatus === "cancelled" ? "请检查是否有足够的「已通过」报名（非 pending 状态）。" : "")
-          );
-        }
         return { ok: true };
       }),
 

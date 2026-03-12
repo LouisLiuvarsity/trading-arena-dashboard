@@ -39,3 +39,5 @@
 - [x] 修复 /competitions 页面 tRPC mutation 返回 HTML 而非 JSON 的错误（502 Bad Gateway 自动重试机制）
 - [x] Fix competition creation insert error (Drizzle ORM `default` keyword in prepared statements causing SQL failure) — switched to raw SQL via db.execute()
 - [x] Deep fix: competition creation and publishing (status transition / Arena API sync) not working — removed ensureArenaCompetition, transition now falls back to direct DB write
+- [ ] Fix: users cannot complete OAuth login on published site (stuck at account selection)
+- [x] Fix: transition to 'announced' fails — only use Arena API for live/ended_early, direct DB update for all other transitions
