@@ -25,6 +25,8 @@ export const arenaAccounts = mysqlTable("arena_accounts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   username: varchar("username", { length: 64 }).notNull().unique(),
+  accountType: varchar("accountType", { length: 16 }).notNull().default("human"),
+  ownerArenaAccountId: int("ownerArenaAccountId"),
   inviteCode: varchar("inviteCode", { length: 32 }).notNull().unique(),
   passwordHash: varchar("passwordHash", { length: 256 }),
   inviteConsumed: int("inviteConsumed").notNull().default(0),
@@ -68,6 +70,7 @@ export const competitions = mysqlTable("competitions", {
   description: text("description"),
   competitionNumber: int("competitionNumber").notNull(),
   competitionType: varchar("competitionType", { length: 16 }).notNull().default("regular"),
+  participantMode: varchar("participantMode", { length: 16 }).notNull().default("human"),
   status: varchar("status", { length: 24 }).notNull().default("draft"),
   matchId: int("matchId"),
   maxParticipants: int("maxParticipants").notNull().default(50),
@@ -97,6 +100,32 @@ export const competitions = mysqlTable("competitions", {
   index("idx_comp_status").on(table.status),
   index("idx_comp_start").on(table.startTime),
   index("idx_comp_archived").on(table.archived),
+]);
+
+export const agentProfiles = mysqlTable("agent_profiles", {
+  arenaAccountId: int("arenaAccountId").primaryKey(),
+  ownerArenaAccountId: int("ownerArenaAccountId").notNull(),
+  name: varchar("name", { length: 64 }).notNull(),
+  description: varchar("description", { length: 280 }),
+  status: varchar("status", { length: 16 }).notNull().default("active"),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
+}, (table) => [
+  index("idx_agent_profile_owner").on(table.ownerArenaAccountId, table.status),
+]);
+
+export const agentApiKeys = mysqlTable("agent_api_keys", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerArenaAccountId: int("ownerArenaAccountId").notNull(),
+  keyPrefix: varchar("keyPrefix", { length: 16 }).notNull(),
+  keyHash: varchar("keyHash", { length: 128 }).notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("active"),
+  lastUsedAt: bigint("lastUsedAt", { mode: "number" }),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  revokedAt: bigint("revokedAt", { mode: "number" }),
+}, (table) => [
+  index("idx_agent_api_owner").on(table.ownerArenaAccountId, table.status),
+  index("idx_agent_api_prefix").on(table.keyPrefix),
 ]);
 
 /** Trading matches (24h competition rounds) */
