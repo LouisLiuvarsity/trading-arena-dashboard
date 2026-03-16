@@ -105,6 +105,7 @@ export async function createCompetition(data: {
   description?: string;
   competitionNumber: number;
   competitionType?: string;
+  participantMode?: string;
   maxParticipants?: number;
   minParticipants?: number;
   registrationOpenAt?: number;

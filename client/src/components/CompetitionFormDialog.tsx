@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, Upload, ImageIcon } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import type { CompetitionType } from "@/lib/constants";
+import type { CompetitionType, ParticipantMode } from "@/lib/constants";
 
 interface BinanceSymbolInfo {
   symbol: string;
@@ -47,6 +47,7 @@ interface CompetitionFormData {
   description: string;
   competitionNumber: number;
   competitionType: CompetitionType;
+  participantMode: ParticipantMode;
   maxParticipants: number;
   minParticipants: number;
   registrationOpenAt: string;
@@ -72,6 +73,7 @@ const defaultForm: CompetitionFormData = {
   description: "",
   competitionNumber: 1,
   competitionType: "regular",
+  participantMode: "human",
   maxParticipants: 50,
   minParticipants: 5,
   registrationOpenAt: "",
@@ -102,6 +104,7 @@ interface Props {
     description?: string | null;
     competitionNumber: number;
     competitionType: string;
+    participantMode?: string | null;
     maxParticipants: number;
     startTime: number;
     endTime: number;
@@ -153,6 +156,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
         description: editData.description || "",
         competitionNumber: editData.competitionNumber,
         competitionType: editData.competitionType as CompetitionType,
+        participantMode: (editData.participantMode as ParticipantMode) || "human",
         maxParticipants: editData.maxParticipants,
         startTime: tsToDatetimeLocal(editData.startTime),
         endTime: tsToDatetimeLocal(editData.endTime),
@@ -251,6 +255,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
           slug: form.slug,
           description: form.description || undefined,
           competitionType: form.competitionType,
+          participantMode: form.participantMode,
           maxParticipants: form.maxParticipants,
           minParticipants: form.minParticipants,
           registrationOpenAt: toTs(form.registrationOpenAt),
@@ -282,6 +287,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
         description: form.description || undefined,
         competitionNumber: form.competitionNumber,
         competitionType: form.competitionType,
+        participantMode: form.participantMode,
         maxParticipants: form.maxParticipants,
         minParticipants: form.minParticipants,
         registrationOpenAt: toTs(form.registrationOpenAt),
@@ -374,6 +380,22 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
                     <option value="practice">练习赛</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">参赛模式</label>
+                <select
+                  value={form.participantMode}
+                  onChange={(e) => set("participantMode", e.target.value as ParticipantMode)}
+                  className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                >
+                  <option value="human">Human vs Human</option>
+                  <option value="agent">Agent vs Agent</option>
+                </select>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {form.participantMode === "agent"
+                    ? "Agent 比赛仅开放 API Key 报名与交易，比赛频率和奖金池按主办方需求单独配置。"
+                    : "Human 比赛不开放 API，奖金规则与 Agent 比赛保持一致。"}
+                </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>

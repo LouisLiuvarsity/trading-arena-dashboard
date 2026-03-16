@@ -14,7 +14,15 @@ import TierBadge from "@/components/TierBadge";
 import StatCard from "@/components/StatCard";
 import CompetitionFormDialog from "@/components/CompetitionFormDialog";
 import CompetitionStatusControl from "@/components/CompetitionStatusControl";
-import { COMP_TYPE_CONFIG, formatDate, downloadCSV, getTierFromPoints, type CompetitionType } from "@/lib/constants";
+import {
+  ACCOUNT_TYPE_CONFIG,
+  COMP_TYPE_CONFIG,
+  PARTICIPANT_MODE_CONFIG,
+  formatDate,
+  downloadCSV,
+  getTierFromPoints,
+  type CompetitionType,
+} from "@/lib/constants";
 
 export default function CompetitionsPage() {
   const [expandedCompId, setExpandedCompId] = useState<number | null>(null);
@@ -125,6 +133,7 @@ export default function CompetitionsPage() {
       ID: c.id,
       标题: c.title,
       类型: COMP_TYPE_CONFIG[c.competitionType as CompetitionType]?.label || c.competitionType,
+      参赛模式: PARTICIPANT_MODE_CONFIG[c.participantMode as "human" | "agent"]?.label || c.participantMode,
       状态: c.status,
       最大参与者: c.maxParticipants,
       已注册: c.registeredCount,
@@ -235,6 +244,18 @@ export default function CompetitionsPage() {
                       <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                         {comp.title}
                         <StatusBadge status={comp.status} pulse={comp.status === "live"} />
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                          style={{
+                            color: PARTICIPANT_MODE_CONFIG[comp.participantMode as "human" | "agent"]?.color ?? "#C7D0DD",
+                            backgroundColor:
+                              comp.participantMode === "agent"
+                                ? "rgba(240,185,11,0.12)"
+                                : "rgba(199,208,221,0.12)",
+                          }}
+                        >
+                          {PARTICIPANT_MODE_CONFIG[comp.participantMode as "human" | "agent"]?.label ?? "Human vs Human"}
+                        </span>
                         {comp.archived === 1 && (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#6B7280]/15 text-[#6B7280]">已归档</span>
                         )}
@@ -242,6 +263,11 @@ export default function CompetitionsPage() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {typeConfig?.label || comp.competitionType} · {comp.symbol} · 奖金池 ${comp.prizePool.toLocaleString()}
                       </p>
+                      {comp.participantMode === "agent" && (
+                        <p className="mt-1 text-[11px] text-[#F0B90B]">
+                          Agent 赛仅开放 API 报名与交易，频率与奖金池按主办方配置。
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -346,6 +372,12 @@ export default function CompetitionsPage() {
                           <span className="text-muted-foreground">赛季 ID</span>
                           <p className="font-mono text-foreground mt-0.5">{comp.seasonId}</p>
                         </div>
+                        <div className="p-2 rounded-lg bg-secondary/30">
+                          <span className="text-muted-foreground">参赛模式</span>
+                          <p className="font-medium text-foreground mt-0.5">
+                            {PARTICIPANT_MODE_CONFIG[comp.participantMode as "human" | "agent"]?.label ?? "Human vs Human"}
+                          </p>
+                        </div>
                       </div>
 
                       {/* Filters & Batch Actions */}
@@ -424,7 +456,32 @@ export default function CompetitionsPage() {
                                       className="rounded border-border"
                                     />
                                   </td>
-                                  <td className="px-3 py-2 text-sm font-medium text-foreground">{reg.username || `User #${reg.arenaAccountId}`}</td>
+                                  <td className="px-3 py-2">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                                          style={{
+                                            color: ACCOUNT_TYPE_CONFIG[reg.accountType as "human" | "agent"]?.color ?? "#C7D0DD",
+                                            backgroundColor:
+                                              reg.accountType === "agent"
+                                                ? "rgba(240,185,11,0.12)"
+                                                : "rgba(199,208,221,0.12)",
+                                          }}
+                                        >
+                                          {ACCOUNT_TYPE_CONFIG[reg.accountType as "human" | "agent"]?.label ?? "Human"}
+                                        </span>
+                                        <span className="text-sm font-medium text-foreground">
+                                          {reg.agentName || reg.username || `User #${reg.arenaAccountId}`}
+                                        </span>
+                                      </div>
+                                      {reg.ownerUsername && (
+                                        <p className="text-[10px] text-muted-foreground">
+                                          Owner: {reg.ownerUsername}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </td>
                                   <td className="px-3 py-2">
                                     <TierBadge tier={getTierFromPoints(reg.seasonPoints || 0)} />
                                   </td>

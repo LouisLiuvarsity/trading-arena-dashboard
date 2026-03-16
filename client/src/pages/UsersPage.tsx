@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import TierBadge from "@/components/TierBadge";
 import StatusBadge from "@/components/StatusBadge";
 import StatCard from "@/components/StatCard";
-import { getTierFromPoints, formatDate, downloadCSV, TIER_CONFIG, type RankTier } from "@/lib/constants";
+import { ACCOUNT_TYPE_CONFIG, getTierFromPoints, formatDate, downloadCSV } from "@/lib/constants";
 
 type UserStatusFilter = "all" | "active" | "banned";
 
@@ -80,6 +80,10 @@ export default function UsersPage() {
         const rows = result.map((u: any) => ({
           ID: u.id,
           用户名: u.username,
+          账号类型: u.accountType === "agent" ? "Agent" : "Human",
+          归属Owner: u.ownerUsername || "",
+          Agent名称: u.agentName || "",
+          绑定Agent数: u.agentCount ?? 0,
           状态: u.role === "banned" ? "已封禁" : "活跃",
           资金: u.capital,
           赛季积分: u.seasonPoints,
@@ -183,6 +187,7 @@ export default function UsersPage() {
               <thead>
                 <tr className="border-b border-border bg-secondary/50">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">用户</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">账号类型</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">段位</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">赛季积分</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">资金</th>
@@ -197,6 +202,7 @@ export default function UsersPage() {
                 {users.map((u) => {
                   const tier = getTierFromPoints(u.seasonPoints);
                   const isBanned = u.role === "banned";
+                  const accountType = (u.accountType as "human" | "agent") ?? "human";
                   return (
                     <tr
                       key={u.id}
@@ -212,6 +218,31 @@ export default function UsersPage() {
                             <p className="text-sm font-medium text-foreground">{u.username}</p>
                             <p className="text-[10px] text-muted-foreground">#{u.id}</p>
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="space-y-1">
+                          <span
+                            className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              color: ACCOUNT_TYPE_CONFIG[accountType].color,
+                              backgroundColor:
+                                accountType === "agent"
+                                  ? "rgba(240,185,11,0.12)"
+                                  : "rgba(199,208,221,0.12)",
+                            }}
+                          >
+                            {ACCOUNT_TYPE_CONFIG[accountType].label}
+                          </span>
+                          {accountType === "agent" ? (
+                            <p className="text-[10px] text-muted-foreground">
+                              {u.ownerUsername ? `Owner: ${u.ownerUsername}` : "Unowned"}
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">
+                              已绑定 {u.agentCount ?? 0} / 10 Agent
+                            </p>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3"><TierBadge tier={tier} /></td>
@@ -256,7 +287,7 @@ export default function UsersPage() {
                 })}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       暂无用户数据
                     </td>
                   </tr>
@@ -344,10 +375,59 @@ export default function UsersPage() {
                     <div>
                       <h4 className="text-lg font-bold text-foreground">{userDetail.account.username}</h4>
                       <div className="flex items-center gap-2 mt-1">
+                        <span
+                          className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                          style={{
+                            color: ACCOUNT_TYPE_CONFIG[(userDetail.account.accountType as "human" | "agent") ?? "human"].color,
+                            backgroundColor:
+                              userDetail.account.accountType === "agent"
+                                ? "rgba(240,185,11,0.12)"
+                                : "rgba(199,208,221,0.12)",
+                          }}
+                        >
+                          {ACCOUNT_TYPE_CONFIG[(userDetail.account.accountType as "human" | "agent") ?? "human"].label}
+                        </span>
                         <TierBadge tier={getTierFromPoints(userDetail.account.seasonPoints)} size="md" />
                         <StatusBadge status={userDetail.account.role === "banned" ? "banned" : "active"} />
                       </div>
                     </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-2">
+                    {userDetail.account.accountType === "agent" ? (
+                      <>
+                        <div className="flex items-center justify-between gap-4 text-sm">
+                          <span className="text-muted-foreground">Agent 名称</span>
+                          <span className="font-medium text-foreground">
+                            {userDetail.agentProfile?.name || userDetail.account.username}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 text-sm">
+                          <span className="text-muted-foreground">归属 Owner</span>
+                          <span className="font-medium text-foreground">
+                            {userDetail.ownerAccount?.username || "—"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 text-sm">
+                          <span className="text-muted-foreground">Agent 状态</span>
+                          <span className="font-medium text-foreground">
+                            {userDetail.agentProfile?.status || "active"}
+                          </span>
+                        </div>
+                        {userDetail.agentProfile?.description && (
+                          <p className="text-sm text-muted-foreground">
+                            {userDetail.agentProfile.description}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-between gap-4 text-sm">
+                        <span className="text-muted-foreground">已绑定 Agent</span>
+                        <span className="font-medium text-foreground">
+                          {userDetail.ownedAgentCount ?? 0} / 10
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Stats Grid */}

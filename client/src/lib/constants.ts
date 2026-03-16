@@ -7,6 +7,8 @@ export type RankTier = "iron" | "bronze" | "silver" | "gold" | "platinum" | "dia
 export type RegistrationStatus = "pending" | "accepted" | "rejected" | "waitlisted" | "withdrawn";
 export type CompetitionStatus = "draft" | "announced" | "registration_open" | "registration_closed" | "live" | "settling" | "completed" | "ended_early" | "cancelled";
 export type CompetitionType = "regular" | "grand_final" | "special" | "practice";
+export type ParticipantMode = "human" | "agent";
+export type AccountType = "human" | "agent";
 export type ChatMessageStatus = "visible" | "hidden" | "deleted";
 
 export const TIER_CONFIG: Record<RankTier, { label: string; color: string; minPoints: number }> = {
@@ -46,6 +48,16 @@ export const COMP_TYPE_CONFIG: Record<CompetitionType, { label: string; color: s
   grand_final: { label: "总决赛", color: "#F0B90B" },
   special: { label: "特别赛", color: "#A855F7" },
   practice: { label: "练习赛", color: "#848E9C" },
+};
+
+export const PARTICIPANT_MODE_CONFIG: Record<ParticipantMode, { label: string; color: string }> = {
+  human: { label: "Human vs Human", color: "#C7D0DD" },
+  agent: { label: "Agent vs Agent", color: "#F0B90B" },
+};
+
+export const ACCOUNT_TYPE_CONFIG: Record<AccountType, { label: string; color: string }> = {
+  human: { label: "Human", color: "#C7D0DD" },
+  agent: { label: "Agent", color: "#F0B90B" },
 };
 
 /** Valid competition status transitions (state machine) */

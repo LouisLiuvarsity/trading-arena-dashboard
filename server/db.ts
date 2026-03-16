@@ -20,6 +20,7 @@ import {
   predictions,
   notifications,
   userAchievements,
+  agentProfiles,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -222,6 +223,7 @@ export async function getArenaUsers(opts: {
     conditions.push(
       or(
         like(arenaAccounts.username, `%${search}%`),
+        like(agentProfiles.name, `%${search}%`),
         like(userProfiles.country, `%${search}%`),
         like(userProfiles.city, `%${search}%`),
         like(userProfiles.institutionName, `%${search}%`)
@@ -249,6 +251,7 @@ export async function getArenaUsers(opts: {
   const countResult = await db
     .select({ total: count() })
     .from(arenaAccounts)
+    .leftJoin(agentProfiles, eq(arenaAccounts.id, agentProfiles.arenaAccountId))
     .leftJoin(userProfiles, eq(arenaAccounts.id, userProfiles.arenaAccountId))
     .where(whereClause);
   const total = countResult[0]?.total ?? 0;
@@ -268,6 +271,8 @@ export async function getArenaUsers(opts: {
       id: arenaAccounts.id,
       userId: arenaAccounts.userId,
       username: arenaAccounts.username,
+      accountType: arenaAccounts.accountType,
+      ownerArenaAccountId: arenaAccounts.ownerArenaAccountId,
       inviteCode: arenaAccounts.inviteCode,
       role: arenaAccounts.role,
       capital: arenaAccounts.capital,
@@ -285,15 +290,63 @@ export async function getArenaUsers(opts: {
       participantType: userProfiles.participantType,
       bio: userProfiles.bio,
       isProfilePublic: userProfiles.isProfilePublic,
+      agentName: agentProfiles.name,
     })
     .from(arenaAccounts)
+    .leftJoin(agentProfiles, eq(arenaAccounts.id, agentProfiles.arenaAccountId))
     .leftJoin(userProfiles, eq(arenaAccounts.id, userProfiles.arenaAccountId))
     .where(whereClause)
     .orderBy(orderClause)
     .limit(pageSize)
     .offset(offset);
 
-  return { users: rows, total };
+  const ownerIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.ownerArenaAccountId)
+        .filter((id): id is number => typeof id === "number"),
+    ),
+  );
+
+  const owners = ownerIds.length
+    ? await db
+        .select({ id: arenaAccounts.id, username: arenaAccounts.username })
+        .from(arenaAccounts)
+        .where(inArray(arenaAccounts.id, ownerIds))
+    : [];
+
+  const ownerMap = new Map(owners.map((owner) => [owner.id, owner.username]));
+
+  const agentCounts = await db
+    .select({
+      ownerArenaAccountId: arenaAccounts.ownerArenaAccountId,
+      total: count(),
+    })
+    .from(arenaAccounts)
+    .where(
+      and(
+        eq(arenaAccounts.accountType, "agent"),
+        sql`${arenaAccounts.ownerArenaAccountId} IS NOT NULL`,
+      ),
+    )
+    .groupBy(arenaAccounts.ownerArenaAccountId);
+
+  const agentCountMap = new Map(
+    agentCounts
+      .filter((row) => typeof row.ownerArenaAccountId === "number")
+      .map((row) => [row.ownerArenaAccountId as number, row.total]),
+  );
+
+  return {
+    users: rows.map((row) => ({
+      ...row,
+      ownerUsername: row.ownerArenaAccountId
+        ? ownerMap.get(row.ownerArenaAccountId) ?? null
+        : null,
+      agentCount: row.accountType === "human" ? agentCountMap.get(row.id) ?? 0 : 0,
+    })),
+    total,
+  };
 }
 
 export async function getArenaUserDetail(arenaAccountId: number) {
@@ -312,6 +365,30 @@ export async function getArenaUserDetail(arenaAccountId: number) {
     .from(userProfiles)
     .where(eq(userProfiles.arenaAccountId, arenaAccountId))
     .limit(1);
+
+  const [agentProfile] = await db
+    .select()
+    .from(agentProfiles)
+    .where(eq(agentProfiles.arenaAccountId, arenaAccountId))
+    .limit(1);
+
+  const [ownerAccount] = account.ownerArenaAccountId
+    ? await db
+        .select({ id: arenaAccounts.id, username: arenaAccounts.username })
+        .from(arenaAccounts)
+        .where(eq(arenaAccounts.id, account.ownerArenaAccountId))
+        .limit(1)
+    : [null];
+
+  const [ownedAgentCount] = await db
+    .select({ total: count() })
+    .from(arenaAccounts)
+    .where(
+      and(
+        eq(arenaAccounts.ownerArenaAccountId, arenaAccountId),
+        eq(arenaAccounts.accountType, "agent"),
+      ),
+    );
 
   // Get match results for this user
   const results = await db
@@ -378,6 +455,9 @@ export async function getArenaUserDetail(arenaAccountId: number) {
   return {
     account,
     profile: profile || null,
+    agentProfile: agentProfile || null,
+    ownerAccount: ownerAccount || null,
+    ownedAgentCount: ownedAgentCount?.total ?? 0,
     matchResults: results,
     registrations,
     ipEvents,
@@ -466,6 +546,7 @@ export async function createCompetitionDirect(input: {
   description?: string;
   competitionNumber: number;
   competitionType?: string;
+  participantMode?: string;
   maxParticipants?: number;
   minParticipants?: number;
   registrationOpenAt?: number;
@@ -493,7 +574,7 @@ export async function createCompetitionDirect(input: {
   try {
     const result = await db.execute(sql`
       INSERT INTO competitions (
-        seasonId, title, slug, description, competitionNumber, competitionType,
+        seasonId, title, slug, description, competitionNumber, competitionType, participantMode,
         status, matchId, maxParticipants, minParticipants, registrationOpenAt,
         registrationCloseAt, startTime, endTime, symbol, startingCapital,
         maxTradesPerMatch, closeOnlySeconds, feeRate, prizePool, prizeTableJson,
@@ -501,7 +582,7 @@ export async function createCompetitionDirect(input: {
         coverImageUrl, createdBy, archived, createdAt, updatedAt
       ) VALUES (
         ${input.seasonId}, ${input.title}, ${input.slug}, ${input.description ?? null},
-        ${input.competitionNumber}, ${input.competitionType ?? "regular"},
+        ${input.competitionNumber}, ${input.competitionType ?? "regular"}, ${input.participantMode ?? "human"},
         ${"draft"}, ${null}, ${input.maxParticipants ?? 50}, ${input.minParticipants ?? 5},
         ${input.registrationOpenAt ?? null}, ${input.registrationCloseAt ?? null},
         ${input.startTime}, ${input.endTime}, ${input.symbol ?? "SOLUSDT"},
@@ -572,6 +653,7 @@ export async function getCompetitions() {
       description: competitions.description,
       competitionNumber: competitions.competitionNumber,
       competitionType: competitions.competitionType,
+      participantMode: competitions.participantMode,
       status: competitions.status,
       maxParticipants: competitions.maxParticipants,
       startTime: competitions.startTime,
@@ -628,18 +710,47 @@ export async function getCompetitionRegistrations(competitionId: number, statusF
       adminNote: competitionRegistrations.adminNote,
       // Account info
       username: arenaAccounts.username,
+      accountType: arenaAccounts.accountType,
+      ownerArenaAccountId: arenaAccounts.ownerArenaAccountId,
       seasonPoints: arenaAccounts.seasonPoints,
       capital: arenaAccounts.capital,
       // Profile info
       country: userProfiles.country,
       institutionName: userProfiles.institutionName,
       participantType: userProfiles.participantType,
+      agentName: agentProfiles.name,
     })
     .from(competitionRegistrations)
     .leftJoin(arenaAccounts, eq(competitionRegistrations.arenaAccountId, arenaAccounts.id))
+    .leftJoin(agentProfiles, eq(competitionRegistrations.arenaAccountId, agentProfiles.arenaAccountId))
     .leftJoin(userProfiles, eq(competitionRegistrations.arenaAccountId, userProfiles.arenaAccountId))
     .where(and(...conditions))
-    .orderBy(desc(competitionRegistrations.appliedAt));
+    .orderBy(desc(competitionRegistrations.appliedAt))
+    .then(async (rows) => {
+      const ownerIds = Array.from(
+        new Set(
+          rows
+            .map((row) => row.ownerArenaAccountId)
+            .filter((id): id is number => typeof id === "number"),
+        ),
+      );
+
+      const owners = ownerIds.length
+        ? await db
+            .select({ id: arenaAccounts.id, username: arenaAccounts.username })
+            .from(arenaAccounts)
+            .where(inArray(arenaAccounts.id, ownerIds))
+        : [];
+
+      const ownerMap = new Map(owners.map((owner) => [owner.id, owner.username]));
+
+      return rows.map((row) => ({
+        ...row,
+        ownerUsername: row.ownerArenaAccountId
+          ? ownerMap.get(row.ownerArenaAccountId) ?? null
+          : null,
+      }));
+    });
 }
 
 export async function updateRegistrationStatus(ids: number[], status: string, reviewedBy: number) {
@@ -1057,6 +1168,8 @@ export async function getAllArenaUsersForExport() {
     .select({
       id: arenaAccounts.id,
       username: arenaAccounts.username,
+      accountType: arenaAccounts.accountType,
+      ownerArenaAccountId: arenaAccounts.ownerArenaAccountId,
       role: arenaAccounts.role,
       capital: arenaAccounts.capital,
       seasonPoints: arenaAccounts.seasonPoints,
@@ -1065,11 +1178,59 @@ export async function getAllArenaUsersForExport() {
       city: userProfiles.city,
       institutionName: userProfiles.institutionName,
       participantType: userProfiles.participantType,
+      agentName: agentProfiles.name,
     })
     .from(arenaAccounts)
+    .leftJoin(agentProfiles, eq(arenaAccounts.id, agentProfiles.arenaAccountId))
     .leftJoin(userProfiles, eq(arenaAccounts.id, userProfiles.arenaAccountId))
     .orderBy(desc(arenaAccounts.seasonPoints))
-    .limit(10000);
+    .limit(10000)
+    .then(async (rows) => {
+      const ownerIds = Array.from(
+        new Set(
+          rows
+            .map((row) => row.ownerArenaAccountId)
+            .filter((id): id is number => typeof id === "number"),
+        ),
+      );
+
+      const owners = ownerIds.length
+        ? await db
+            .select({ id: arenaAccounts.id, username: arenaAccounts.username })
+            .from(arenaAccounts)
+            .where(inArray(arenaAccounts.id, ownerIds))
+        : [];
+
+      const ownerMap = new Map(owners.map((owner) => [owner.id, owner.username]));
+
+      const agentCounts = await db
+        .select({
+          ownerArenaAccountId: arenaAccounts.ownerArenaAccountId,
+          total: count(),
+        })
+        .from(arenaAccounts)
+        .where(
+          and(
+            eq(arenaAccounts.accountType, "agent"),
+            sql`${arenaAccounts.ownerArenaAccountId} IS NOT NULL`,
+          ),
+        )
+        .groupBy(arenaAccounts.ownerArenaAccountId);
+
+      const agentCountMap = new Map(
+        agentCounts
+          .filter((row) => typeof row.ownerArenaAccountId === "number")
+          .map((row) => [row.ownerArenaAccountId as number, row.total]),
+      );
+
+      return rows.map((row) => ({
+        ...row,
+        ownerUsername: row.ownerArenaAccountId
+          ? ownerMap.get(row.ownerArenaAccountId) ?? null
+          : null,
+        agentCount: row.accountType === "human" ? agentCountMap.get(row.id) ?? 0 : 0,
+      }));
+    });
 }
 
 export async function getAllCompetitionsForExport() {
@@ -1081,6 +1242,7 @@ export async function getAllCompetitionsForExport() {
       id: competitions.id,
       title: competitions.title,
       competitionType: competitions.competitionType,
+      participantMode: competitions.participantMode,
       status: competitions.status,
       archived: competitions.archived,
       maxParticipants: competitions.maxParticipants,
