@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2, Upload, ImageIcon } from "lucide-react";
+import { X, Loader2, ImageIcon, Bot, Coins, CalendarRange, UserRound } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { CompetitionType, ParticipantMode } from "@/lib/constants";
@@ -238,6 +238,14 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+  const durationHours =
+    form.startTime && form.endTime
+      ? Math.max(0, Math.round((new Date(form.endTime).getTime() - new Date(form.startTime).getTime()) / 36e5))
+      : 0;
+  const regWindowHours =
+    form.registrationOpenAt && form.registrationCloseAt
+      ? Math.max(0, Math.round((new Date(form.registrationCloseAt).getTime() - new Date(form.registrationOpenAt).getTime()) / 36e5))
+      : 0;
 
   const handleSubmit = () => {
     if (!form.title || !form.slug || !form.startTime || !form.endTime || !form.seasonId) {
@@ -381,21 +389,92 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">参赛模式</label>
-                <select
-                  value={form.participantMode}
-                  onChange={(e) => set("participantMode", e.target.value as ParticipantMode)}
-                  className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
-                >
-                  <option value="human">Human vs Human</option>
-                  <option value="agent">Agent vs Agent</option>
-                </select>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  {form.participantMode === "agent"
-                    ? "Agent 比赛仅开放 API Key 报名与交易，比赛频率和奖金池按主办方需求单独配置。"
-                    : "Human 比赛不开放 API，奖金规则与 Agent 比赛保持一致。"}
-                </p>
+              <div className="space-y-3">
+                <label className="block text-xs text-muted-foreground">参赛模式</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {[
+                    {
+                      key: "human" as const,
+                      title: "Human vs Human",
+                      hint: "面向人类用户的常规比赛，不开放 API 报名。",
+                      icon: <UserRound className="w-4 h-4" />,
+                    },
+                    {
+                      key: "agent" as const,
+                      title: "Agent vs Agent",
+                      hint: "仅开放 API Key 报名与交易，频率和奖金池由主办方独立配置。",
+                      icon: <Bot className="w-4 h-4" />,
+                    },
+                  ].map((mode) => {
+                    const active = form.participantMode === mode.key;
+                    return (
+                      <button
+                        key={mode.key}
+                        type="button"
+                        onClick={() => set("participantMode", mode.key)}
+                        className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
+                          active
+                            ? "border-[#F0B90B]/40 bg-[#F0B90B]/10"
+                            : "border-border bg-secondary/60 hover:border-[#F0B90B]/20"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                          <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${
+                            active ? "bg-[#F0B90B] text-black" : "bg-white/5 text-muted-foreground"
+                          }`}>
+                            {mode.icon}
+                          </span>
+                          {mode.title}
+                        </div>
+                        <p className="mt-3 text-[12px] leading-5 text-muted-foreground">{mode.hint}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-[#0D1118] p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        {form.participantMode === "agent" ? <Bot className="w-3.5 h-3.5" /> : <UserRound className="w-3.5 h-3.5" />}
+                        赛道
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-foreground">
+                        {form.participantMode === "agent" ? "Agent" : "Human"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Coins className="w-3.5 h-3.5" />
+                        奖金池
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-foreground">{form.prizePool} USDT</p>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <CalendarRange className="w-3.5 h-3.5" />
+                        报名窗口
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-foreground">
+                        {regWindowHours > 0 ? `${regWindowHours}h` : "--"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <CalendarRange className="w-3.5 h-3.5" />
+                        比赛时长
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-foreground">
+                        {durationHours > 0 ? `${durationHours}h` : "--"}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
+                    {form.participantMode === "agent"
+                      ? "Agent 比赛只接受 API 参赛；创建后建议在比赛列表中重点关注 API-only 提示、报名窗口和奖金池设置。"
+                      : "Human 比赛走网页报名流程；奖金分配逻辑与 Agent 比赛一致，只是参赛入口不同。"}
+                  </p>
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>

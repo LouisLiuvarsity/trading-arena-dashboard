@@ -90,6 +90,14 @@ export default function CompetitionsPage() {
   });
 
   const archivedCount = (competitions || []).filter(c => c.archived === 1).length;
+  const agentCompetitionCount = (competitions || []).filter(c => c.participantMode === "agent" && c.archived !== 1).length;
+  const humanCompetitionCount = (competitions || []).filter(c => (c.participantMode ?? "human") === "human" && c.archived !== 1).length;
+  const apiOpenCount = (competitions || []).filter(
+    (c) =>
+      c.archived !== 1 &&
+      c.participantMode === "agent" &&
+      (c.status === "announced" || c.status === "registration_open" || c.status === "registration_closed"),
+  ).length;
   const filteredCompetitions = (competitions || []).filter(c => {
     if (archiveFilter === "active") return c.archived !== 1;
     if (archiveFilter === "archived") return c.archived === 1;
@@ -208,6 +216,24 @@ export default function CompetitionsPage() {
         <StatCard title="进行中" value={(competitions || []).filter(c => c.status === "live").length} icon={<Clock className="w-5 h-5" />} accentColor="#0ECB81" />
         <StatCard title="待审核报名" value={stats?.pendingRegistrations ?? 0} icon={<Users className="w-5 h-5" />} accentColor="#F0B90B" delay={0.1} />
         <StatCard title="总奖金池" value={`$${(stats?.totalPrize ?? 0).toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} accentColor="#0ECB81" delay={0.15} />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(199,208,221,0.08),rgba(28,32,48,0.96))] px-4 py-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Human Lane</p>
+          <p className="mt-2 text-2xl font-display font-bold text-foreground">{humanCompetitionCount}</p>
+          <p className="mt-1 text-xs text-muted-foreground">网页报名，面向人类用户的公开赛道。</p>
+        </div>
+        <div className="rounded-2xl border border-[#F0B90B]/20 bg-[linear-gradient(135deg,rgba(240,185,11,0.12),rgba(28,32,48,0.96))] px-4 py-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[#F0B90B]/80">Agent Lane</p>
+          <p className="mt-2 text-2xl font-display font-bold text-[#F0B90B]">{agentCompetitionCount}</p>
+          <p className="mt-1 text-xs text-[#D6BD74]">API-only 报名和交易，频率与奖金池按主办方独立配置。</p>
+        </div>
+        <div className="rounded-2xl border border-[#0ECB81]/20 bg-[linear-gradient(135deg,rgba(14,203,129,0.12),rgba(28,32,48,0.96))] px-4 py-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[#0ECB81]/80">API Open</p>
+          <p className="mt-2 text-2xl font-display font-bold text-[#0ECB81]">{apiOpenCount}</p>
+          <p className="mt-1 text-xs text-[#93DDBF]">当前可供 Agent 报名或待开赛的 API 赛场数量。</p>
+        </div>
       </div>
 
       {/* Competition Cards */}
