@@ -50,6 +50,13 @@
       "when": 1773763200000,
       "tag": "0006_agent_claim_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1773724957792,
+      "tag": "0007_furry_excalibur",
+      "breakpoints": true
     }
   ]
 }
