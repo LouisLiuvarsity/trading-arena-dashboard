@@ -27,6 +27,9 @@ import { ENV } from './_core/env';
 let _db: ReturnType<typeof drizzle> | null = null;
 const REGISTRATION_STATUSES = ["pending", "accepted", "rejected", "waitlisted", "withdrawn"] as const;
 const CHAT_MODERATION_STATUSES = ["visible", "hidden", "deleted"] as const;
+const ACCOUNT_SCOPES = ["all", "human", "agent"] as const;
+
+type AccountScope = (typeof ACCOUNT_SCOPES)[number];
 
 type CompetitionCleanupStats = {
   registrations: number;
@@ -77,6 +80,26 @@ function assertChatModerationStatus(
 
 function getAffectedRows(result: any): number {
   return result?.[0]?.affectedRows ?? result?.affectedRows ?? 0;
+}
+
+function buildWhereClause(conditions: Array<SQL | undefined>) {
+  const filtered = conditions.filter((condition): condition is SQL => Boolean(condition));
+  return filtered.length > 0 ? and(...filtered) : undefined;
+}
+
+function getAccountScopeCondition(scope: AccountScope) {
+  return scope === "all" ? undefined : eq(arenaAccounts.accountType, scope);
+}
+
+function getCompetitionScopeCondition(scope: AccountScope) {
+  return scope === "all" ? undefined : eq(competitions.participantMode, scope);
+}
+
+function getActiveAgentProfileCondition() {
+  return or(
+    eq(agentProfiles.status, "active"),
+    sql`${agentProfiles.status} IS NULL`,
+  );
 }
 
 export async function getDb() {
@@ -208,13 +231,23 @@ export async function getArenaUsers(opts: {
   search?: string;
   tier?: string;
   status?: string; // "active" | "banned"
+  accountType?: AccountScope;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }) {
   const db = await getDb();
   if (!db) return { users: [], total: 0 };
 
-  const { page, pageSize, search, tier, status, sortBy = "createdAt", sortOrder = "desc" } = opts;
+  const {
+    page,
+    pageSize,
+    search,
+    tier,
+    status,
+    accountType = "all",
+    sortBy = "createdAt",
+    sortOrder = "desc",
+  } = opts;
   const offset = (page - 1) * pageSize;
 
   // Build conditions
@@ -244,8 +277,11 @@ export async function getArenaUsers(opts: {
   } else if (status === "active") {
     conditions.push(sql`${arenaAccounts.role} != 'banned'`);
   }
+  if (accountType !== "all") {
+    conditions.push(eq(arenaAccounts.accountType, accountType));
+  }
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const whereClause = buildWhereClause(conditions);
 
   // Get total count
   const countResult = await db
@@ -323,10 +359,12 @@ export async function getArenaUsers(opts: {
       total: count(),
     })
     .from(arenaAccounts)
+    .leftJoin(agentProfiles, eq(arenaAccounts.id, agentProfiles.arenaAccountId))
     .where(
       and(
         eq(arenaAccounts.accountType, "agent"),
         sql`${arenaAccounts.ownerArenaAccountId} IS NOT NULL`,
+        getActiveAgentProfileCondition()!,
       ),
     )
     .groupBy(arenaAccounts.ownerArenaAccountId);
@@ -383,10 +421,12 @@ export async function getArenaUserDetail(arenaAccountId: number) {
   const [ownedAgentCount] = await db
     .select({ total: count() })
     .from(arenaAccounts)
+    .leftJoin(agentProfiles, eq(arenaAccounts.id, agentProfiles.arenaAccountId))
     .where(
       and(
         eq(arenaAccounts.ownerArenaAccountId, arenaAccountId),
         eq(arenaAccounts.accountType, "agent"),
+        getActiveAgentProfileCondition()!,
       ),
     );
 
@@ -879,25 +919,50 @@ export async function batchModerateMessages(messageIds: string[], status: string
 
 // ─── Statistics ─────────────────────────────────────────────────────────────
 
-export async function getPlatformStats() {
+export async function getPlatformStats(scope: AccountScope = "all") {
   const db = await getDb();
   if (!db) return null;
 
-  const [userCount] = await db.select({ total: count() }).from(arenaAccounts);
-  const [compCount] = await db.select({ total: count() }).from(competitions);
-  const [tradeCount] = await db.select({ total: count() }).from(trades);
-  const [msgCount] = await db.select({ total: count() }).from(chatMessages);
+  const [userCount] = await db
+    .select({ total: count() })
+    .from(arenaAccounts)
+    .where(getAccountScopeCondition(scope));
+
+  const [compCount] = await db
+    .select({ total: count() })
+    .from(competitions)
+    .where(getCompetitionScopeCondition(scope));
+
+  const [tradeCount] = await db
+    .select({ total: count() })
+    .from(trades)
+    .innerJoin(arenaAccounts, eq(trades.arenaAccountId, arenaAccounts.id))
+    .where(getAccountScopeCondition(scope));
+
+  const [msgCount] = scope === "all"
+    ? await db.select({ total: count() }).from(chatMessages)
+    : await db
+        .select({ total: count() })
+        .from(chatMessages)
+        .innerJoin(competitions, eq(chatMessages.competitionId, competitions.id))
+        .where(getCompetitionScopeCondition(scope));
 
   // Total prize paid
   const [prizeSum] = await db
     .select({ total: sql<number>`COALESCE(SUM(${matchResults.prizeWon}), 0)` })
-    .from(matchResults);
+    .from(matchResults)
+    .innerJoin(arenaAccounts, eq(matchResults.arenaAccountId, arenaAccounts.id))
+    .where(getAccountScopeCondition(scope));
 
   // Pending registrations
   const [pendingRegs] = await db
     .select({ total: count() })
     .from(competitionRegistrations)
-    .where(eq(competitionRegistrations.status, "pending"));
+    .innerJoin(competitions, eq(competitionRegistrations.competitionId, competitions.id))
+    .where(buildWhereClause([
+      eq(competitionRegistrations.status, "pending"),
+      getCompetitionScopeCondition(scope),
+    ]));
 
   // Average win rate
   const allResults = await db
@@ -905,12 +970,15 @@ export async function getPlatformStats() {
       winCount: matchResults.winCount,
       lossCount: matchResults.lossCount,
     })
-    .from(matchResults);
+    .from(matchResults)
+    .innerJoin(arenaAccounts, eq(matchResults.arenaAccountId, arenaAccounts.id))
+    .where(getAccountScopeCondition(scope));
   const totalWins = allResults.reduce((s, r) => s + r.winCount, 0);
   const totalLosses = allResults.reduce((s, r) => s + r.lossCount, 0);
   const avgWinRate = (totalWins + totalLosses) > 0 ? Math.round((totalWins / (totalWins + totalLosses)) * 1000) / 10 : 0;
 
   return {
+    scope,
     totalUsers: userCount?.total ?? 0,
     totalCompetitions: compCount?.total ?? 0,
     totalTrades: tradeCount?.total ?? 0,
@@ -921,13 +989,14 @@ export async function getPlatformStats() {
   };
 }
 
-export async function getTierDistribution() {
+export async function getTierDistribution(scope: AccountScope = "human") {
   const db = await getDb();
   if (!db) return [];
 
   const allAccounts = await db
     .select({ seasonPoints: arenaAccounts.seasonPoints })
-    .from(arenaAccounts);
+    .from(arenaAccounts)
+    .where(getAccountScopeCondition(scope));
 
   // Compute tiers based on season points (must match TA/server/constants.ts RANK_TIERS)
   const tiers = { iron: 0, bronze: 0, silver: 0, gold: 0, platinum: 0, diamond: 0 };
@@ -944,7 +1013,7 @@ export async function getTierDistribution() {
   return Object.entries(tiers).map(([tier, count]) => ({ tier, count }));
 }
 
-export async function getCompetitionTrends() {
+export async function getCompetitionTrends(scope: AccountScope = "human") {
   const db = await getDb();
   if (!db) return [];
 
@@ -953,21 +1022,33 @@ export async function getCompetitionTrends() {
       id: competitions.id,
       title: competitions.title,
       competitionNumber: competitions.competitionNumber,
+      participantMode: competitions.participantMode,
       startTime: competitions.startTime,
       status: competitions.status,
     })
     .from(competitions)
-    .where(sql`${competitions.status} IN ('completed', 'ended_early', 'live', 'settling')`)
+    .where(buildWhereClause([
+      sql`${competitions.status} IN ('completed', 'ended_early', 'live', 'settling')`,
+      getCompetitionScopeCondition(scope),
+    ]))
     .orderBy(asc(competitions.competitionNumber));
 
   const result = [];
   for (const c of comps) {
-    const [regCount] = await db
+    const [participantCount] = await db
       .select({ total: count() })
       .from(competitionRegistrations)
       .where(and(
         eq(competitionRegistrations.competitionId, c.id),
         eq(competitionRegistrations.status, "accepted")
+      ));
+
+    const [registrationCount] = await db
+      .select({ total: count() })
+      .from(competitionRegistrations)
+      .where(and(
+        eq(competitionRegistrations.competitionId, c.id),
+        sql`${competitionRegistrations.status} != 'withdrawn'`,
       ));
 
     const [avgPnl] = await db
@@ -978,7 +1059,9 @@ export async function getCompetitionTrends() {
     result.push({
       competitionNumber: c.competitionNumber,
       title: c.title,
-      participants: regCount?.total ?? 0,
+      participantMode: c.participantMode,
+      participants: participantCount?.total ?? 0,
+      registrations: registrationCount?.total ?? 0,
       avgPnlPct: Math.round((avgPnl?.avg ?? 0) * 100) / 100,
     });
   }
@@ -986,9 +1069,25 @@ export async function getCompetitionTrends() {
   return result;
 }
 
-export async function getCountryDistribution() {
+export async function getCountryDistribution(scope: AccountScope = "human") {
   const db = await getDb();
   if (!db) return [];
+
+  if (scope === "agent") {
+    return db
+      .select({
+        country: userProfiles.country,
+        count: count(),
+      })
+      .from(arenaAccounts)
+      .leftJoin(userProfiles, eq(arenaAccounts.ownerArenaAccountId, userProfiles.arenaAccountId))
+      .where(and(
+        eq(arenaAccounts.accountType, "agent"),
+        sql`${userProfiles.country} IS NOT NULL AND ${userProfiles.country} != ''`,
+      ))
+      .groupBy(userProfiles.country)
+      .orderBy(desc(count()));
+  }
 
   const rows = await db
     .select({
@@ -996,30 +1095,53 @@ export async function getCountryDistribution() {
       count: count(),
     })
     .from(userProfiles)
-    .where(sql`${userProfiles.country} IS NOT NULL AND ${userProfiles.country} != ''`)
+    .innerJoin(arenaAccounts, eq(userProfiles.arenaAccountId, arenaAccounts.id))
+    .where(buildWhereClause([
+      sql`${userProfiles.country} IS NOT NULL AND ${userProfiles.country} != ''`,
+      getAccountScopeCondition(scope),
+    ]))
     .groupBy(userProfiles.country)
     .orderBy(desc(count()));
 
   return rows;
 }
 
-export async function getTopTraders(limit = 10) {
+export async function getTopTraders(limit = 10, scope: AccountScope = "human") {
   const db = await getDb();
   if (!db) return [];
 
   // Get all accounts with season points
-  const accounts = await db
-    .select({
-      id: arenaAccounts.id,
-      username: arenaAccounts.username,
-      seasonPoints: arenaAccounts.seasonPoints,
-      country: userProfiles.country,
-    })
-    .from(arenaAccounts)
-    .leftJoin(userProfiles, eq(arenaAccounts.id, userProfiles.arenaAccountId))
-    .where(sql`${arenaAccounts.seasonPoints} > 0`)
-    .orderBy(desc(arenaAccounts.seasonPoints))
-    .limit(200); // Fetch more to re-rank by seasonRankScore
+  const accounts = scope === "agent"
+    ? await db
+        .select({
+          id: arenaAccounts.id,
+          username: arenaAccounts.username,
+          seasonPoints: arenaAccounts.seasonPoints,
+          country: userProfiles.country,
+        })
+        .from(arenaAccounts)
+        .leftJoin(userProfiles, eq(arenaAccounts.ownerArenaAccountId, userProfiles.arenaAccountId))
+        .where(and(
+          eq(arenaAccounts.accountType, "agent"),
+          sql`${arenaAccounts.seasonPoints} > 0`,
+        ))
+        .orderBy(desc(arenaAccounts.seasonPoints))
+        .limit(200)
+    : await db
+        .select({
+          id: arenaAccounts.id,
+          username: arenaAccounts.username,
+          seasonPoints: arenaAccounts.seasonPoints,
+          country: userProfiles.country,
+        })
+        .from(arenaAccounts)
+        .leftJoin(userProfiles, eq(arenaAccounts.id, userProfiles.arenaAccountId))
+        .where(buildWhereClause([
+          sql`${arenaAccounts.seasonPoints} > 0`,
+          getAccountScopeCondition(scope),
+        ]))
+        .orderBy(desc(arenaAccounts.seasonPoints))
+        .limit(200); // Fetch more to re-rank by seasonRankScore
 
   // Compute avgHoldWeight per account
   const avgWeights = await db
@@ -1043,9 +1165,26 @@ export async function getTopTraders(limit = 10) {
   return ranked.slice(0, limit);
 }
 
-export async function getInstitutionLeaderboard(limit = 10) {
+export async function getInstitutionLeaderboard(limit = 10, scope: AccountScope = "human") {
   const db = await getDb();
   if (!db) return [];
+
+  if (scope === "agent") {
+    return db
+      .select({
+        institutionName: userProfiles.institutionName,
+        memberCount: count(),
+      })
+      .from(arenaAccounts)
+      .leftJoin(userProfiles, eq(arenaAccounts.ownerArenaAccountId, userProfiles.arenaAccountId))
+      .where(and(
+        eq(arenaAccounts.accountType, "agent"),
+        sql`${userProfiles.institutionName} IS NOT NULL AND ${userProfiles.institutionName} != ''`,
+      ))
+      .groupBy(userProfiles.institutionName)
+      .orderBy(desc(count()))
+      .limit(limit);
+  }
 
   const rows = await db
     .select({
@@ -1053,7 +1192,11 @@ export async function getInstitutionLeaderboard(limit = 10) {
       memberCount: count(),
     })
     .from(userProfiles)
-    .where(sql`${userProfiles.institutionName} IS NOT NULL AND ${userProfiles.institutionName} != ''`)
+    .innerJoin(arenaAccounts, eq(userProfiles.arenaAccountId, arenaAccounts.id))
+    .where(buildWhereClause([
+      sql`${userProfiles.institutionName} IS NOT NULL AND ${userProfiles.institutionName} != ''`,
+      getAccountScopeCondition(scope),
+    ]))
     .groupBy(userProfiles.institutionName)
     .orderBy(desc(count()))
     .limit(limit);
@@ -1061,7 +1204,7 @@ export async function getInstitutionLeaderboard(limit = 10) {
   return rows;
 }
 
-export async function getRegistrationTrend(days = 14) {
+export async function getRegistrationTrend(days = 14, scope: AccountScope = "human") {
   const db = await getDb();
   if (!db) return [];
 
@@ -1071,7 +1214,11 @@ export async function getRegistrationTrend(days = 14) {
       appliedAt: competitionRegistrations.appliedAt,
     })
     .from(competitionRegistrations)
-    .where(sql`${competitionRegistrations.appliedAt} > ${since}`)
+    .innerJoin(competitions, eq(competitionRegistrations.competitionId, competitions.id))
+    .where(buildWhereClause([
+      sql`${competitionRegistrations.appliedAt} > ${since}`,
+      getCompetitionScopeCondition(scope),
+    ]))
     .orderBy(asc(competitionRegistrations.appliedAt));
 
   // Group by day
@@ -1209,10 +1356,12 @@ export async function getAllArenaUsersForExport() {
           total: count(),
         })
         .from(arenaAccounts)
+        .leftJoin(agentProfiles, eq(arenaAccounts.id, agentProfiles.arenaAccountId))
         .where(
           and(
             eq(arenaAccounts.accountType, "agent"),
             sql`${arenaAccounts.ownerArenaAccountId} IS NOT NULL`,
+            getActiveAgentProfileCondition()!,
           ),
         )
         .groupBy(arenaAccounts.ownerArenaAccountId);

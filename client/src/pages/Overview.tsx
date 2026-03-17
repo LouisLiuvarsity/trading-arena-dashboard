@@ -1,9 +1,10 @@
 /**
  * Overview Page — Platform-wide dashboard with key metrics from real API
  */
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Users, Trophy, MessageSquare, Clock, Activity, DollarSign, Globe, AlertTriangle, Loader2,
+  Users, Trophy, Clock, Activity, DollarSign, Globe, Loader2,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -16,17 +17,25 @@ import { TIER_CONFIG, type RankTier } from "@/lib/constants";
 
 const HERO_BG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663325188422/6Yq9eJsfZbyndNatnSjnyG/hero-banner-dBxu2K7U3KYfS6RayVCXPZ.webp";
 
-const tierColors = Object.values(TIER_CONFIG).map((t) => t.color);
-const tierLabels = Object.entries(TIER_CONFIG).map(([key, val]) => ({ tier: key, ...val }));
+const SCOPE_OPTIONS = [
+  { key: "human", label: "Human" },
+  { key: "agent", label: "Agent" },
+] as const;
 
 export default function Overview() {
-  const { data: stats, isLoading: statsLoading } = trpc.stats.platform.useQuery();
-  const { data: tierDist, isLoading: tierLoading } = trpc.stats.tierDistribution.useQuery();
-  const { data: regTrend } = trpc.stats.registrationTrend.useQuery();
-  const { data: countryDist } = trpc.stats.countryDistribution.useQuery();
+  const [scope, setScope] = useState<"human" | "agent">("human");
+  const scopeLabel = scope === "agent" ? "Agent" : "Human";
+  const profileScopeLabel = scope === "agent" ? "Agent 主人" : "Human";
+
+  const { data: stats, isLoading: statsLoading } = trpc.stats.platform.useQuery({ scope });
+  const { data: tierDist, isLoading: tierLoading } = trpc.stats.tierDistribution.useQuery({ scope });
+  const { data: regTrend } = trpc.stats.registrationTrend.useQuery({ scope });
+  const { data: countryDist } = trpc.stats.countryDistribution.useQuery({ scope });
   const { data: comps } = trpc.competitions.list.useQuery();
 
-  const liveComps = comps?.filter(c => c.status === "live" || c.status === "registration_open") || [];
+  const liveComps = comps?.filter(
+    c => (c.participantMode ?? "human") === scope && (c.status === "live" || c.status === "registration_open")
+  ) || [];
 
   // Enrich tier distribution with labels/colors
   const tierData = tierDist?.map(t => ({
@@ -35,7 +44,7 @@ export default function Overview() {
     color: TIER_CONFIG[t.tier as RankTier]?.color || "#848E9C",
   })) || [];
 
-  if (statsLoading) {
+  if (statsLoading || tierLoading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="w-8 h-8 animate-spin text-[#F0B90B]" />
@@ -45,6 +54,25 @@ export default function Overview() {
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
+      <div className="flex items-center justify-end gap-2">
+        {SCOPE_OPTIONS.map((option) => {
+          const active = option.key === scope;
+          return (
+            <button
+              key={option.key}
+              onClick={() => setScope(option.key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                active
+                  ? "bg-[#F0B90B] text-black"
+                  : "bg-secondary text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Hero Banner */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -59,7 +87,7 @@ export default function Overview() {
               Trading Arena <span className="text-[#F0B90B]">管理后台</span>
             </h1>
             <p className="text-sm text-[#D1D4DC] mt-1">
-              平台运营数据一览 · 实时监控 · 快速管理
+              {scopeLabel} 赛道运营数据 · 实时监控 · 快速管理
             </p>
             <div className="flex items-center gap-4 mt-3">
               {liveComps.map((c) => (
@@ -76,7 +104,7 @@ export default function Overview() {
       {/* Key Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
         <StatCard
-          title="总用户数"
+          title={`${scopeLabel}账户数`}
           value={stats?.totalUsers ?? 0}
           icon={<Users className="w-5 h-5" />}
           accentColor="#3B82F6"
@@ -148,7 +176,7 @@ export default function Overview() {
           transition={{ delay: 0.3 }}
           className="rounded-xl border border-border bg-card p-5"
         >
-          <h3 className="font-display font-semibold text-sm text-foreground mb-4">段位分布</h3>
+          <h3 className="font-display font-semibold text-sm text-foreground mb-4">{scopeLabel} 段位分布</h3>
           <div className="flex items-center justify-center">
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
@@ -193,7 +221,7 @@ export default function Overview() {
       >
         <h3 className="font-display font-semibold text-sm text-foreground mb-4 flex items-center gap-2">
           <Globe className="w-4 h-4 text-[#3B82F6]" />
-          用户地区分布
+          {profileScopeLabel} 地区分布
         </h3>
         {(countryDist?.length ?? 0) > 0 ? (
           <ResponsiveContainer width="100%" height={200}>

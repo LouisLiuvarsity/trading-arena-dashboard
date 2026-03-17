@@ -43,6 +43,13 @@
       "when": 1773650098808,
       "tag": "0005_wandering_captain_universe",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773763200000,
+      "tag": "0006_agent_claim_sessions",
+      "breakpoints": true
     }
   ]
 }

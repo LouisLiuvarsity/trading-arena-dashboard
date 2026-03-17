@@ -29,6 +29,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 
 const USER_TIER_FILTERS = ["all", "iron", "bronze", "silver", "gold", "platinum", "diamond"] as const;
 const USER_STATUS_FILTERS = ["all", "active", "banned"] as const;
+const ACCOUNT_SCOPE_FILTERS = ["all", "human", "agent"] as const;
 const REGISTRATION_FILTER_STATUSES = ["all", "pending", "accepted", "rejected", "waitlisted", "withdrawn"] as const;
 const REGISTRATION_UPDATE_STATUSES = ["pending", "accepted", "rejected", "waitlisted"] as const;
 const CHAT_FILTER_STATUSES = ["all", "visible", "hidden", "deleted"] as const;
@@ -131,6 +132,7 @@ export const appRouter = router({
         search: z.string().optional(),
         tier: z.enum(USER_TIER_FILTERS).optional(),
         status: z.enum(USER_STATUS_FILTERS).optional(),
+        accountType: z.enum(ACCOUNT_SCOPE_FILTERS).optional(),
         sortBy: z.string().optional(),
         sortOrder: z.enum(["asc", "desc"]).optional(),
       }))
@@ -547,19 +549,36 @@ export const appRouter = router({
 
   // ─── Statistics ───────────────────────────────────────────────────────
   stats: router({
-    platform: adminProcedure.query(() => getPlatformStats()),
-    tierDistribution: adminProcedure.query(() => getTierDistribution()),
-    competitionTrends: adminProcedure.query(() => getCompetitionTrends()),
-    countryDistribution: adminProcedure.query(() => getCountryDistribution()),
+    platform: adminProcedure
+      .input(z.object({ scope: z.enum(ACCOUNT_SCOPE_FILTERS).default("all") }).optional())
+      .query(({ input }) => getPlatformStats(input?.scope ?? "all")),
+    tierDistribution: adminProcedure
+      .input(z.object({ scope: z.enum(ACCOUNT_SCOPE_FILTERS).default("human") }).optional())
+      .query(({ input }) => getTierDistribution(input?.scope ?? "human")),
+    competitionTrends: adminProcedure
+      .input(z.object({ scope: z.enum(ACCOUNT_SCOPE_FILTERS).default("human") }).optional())
+      .query(({ input }) => getCompetitionTrends(input?.scope ?? "human")),
+    countryDistribution: adminProcedure
+      .input(z.object({ scope: z.enum(ACCOUNT_SCOPE_FILTERS).default("human") }).optional())
+      .query(({ input }) => getCountryDistribution(input?.scope ?? "human")),
     topTraders: adminProcedure
-      .input(z.object({ limit: z.number().min(1).max(50).default(10) }).optional())
-      .query(({ input }) => getTopTraders(input?.limit)),
+      .input(z.object({
+        limit: z.number().min(1).max(50).default(10),
+        scope: z.enum(ACCOUNT_SCOPE_FILTERS).default("human"),
+      }).optional())
+      .query(({ input }) => getTopTraders(input?.limit, input?.scope ?? "human")),
     institutionLeaderboard: adminProcedure
-      .input(z.object({ limit: z.number().min(1).max(50).default(10) }).optional())
-      .query(({ input }) => getInstitutionLeaderboard(input?.limit)),
+      .input(z.object({
+        limit: z.number().min(1).max(50).default(10),
+        scope: z.enum(ACCOUNT_SCOPE_FILTERS).default("human"),
+      }).optional())
+      .query(({ input }) => getInstitutionLeaderboard(input?.limit, input?.scope ?? "human")),
     registrationTrend: adminProcedure
-      .input(z.object({ days: z.number().min(1).max(90).default(14) }).optional())
-      .query(({ input }) => getRegistrationTrend(input?.days)),
+      .input(z.object({
+        days: z.number().min(1).max(90).default(14),
+        scope: z.enum(ACCOUNT_SCOPE_FILTERS).default("human"),
+      }).optional())
+      .query(({ input }) => getRegistrationTrend(input?.days, input?.scope ?? "human")),
   }),
 
   // ─── Admin Logs ───────────────────────────────────────────────────────

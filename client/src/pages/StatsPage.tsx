@@ -1,6 +1,7 @@
 /**
  * StatsPage — Statistics and analytics with real API
  */
+import { useState } from "react";
 import { Loader2, Trophy, Download, TrendingUp, Globe, Award, Building2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -12,14 +13,22 @@ import TierBadge from "@/components/TierBadge";
 import { TIER_CONFIG, downloadCSV, getTierFromPoints } from "@/lib/constants";
 
 const CHART_COLORS = ["#F0B90B", "#0ECB81", "#3B82F6", "#F6465D", "#8B5CF6", "#EC4899", "#06B6D4", "#F59E0B"];
+const SCOPE_OPTIONS = [
+  { key: "human", label: "Human" },
+  { key: "agent", label: "Agent" },
+] as const;
 
 export default function StatsPage() {
-  const { data: tierDist, isLoading: tierLoading } = trpc.stats.tierDistribution.useQuery();
-  const { data: compTrends, isLoading: trendsLoading } = trpc.stats.competitionTrends.useQuery();
-  const { data: countryDist, isLoading: countryLoading } = trpc.stats.countryDistribution.useQuery();
-  const { data: topTraders, isLoading: tradersLoading } = trpc.stats.topTraders.useQuery({ limit: 10 });
-  const { data: instLeaderboard, isLoading: instLoading } = trpc.stats.institutionLeaderboard.useQuery({ limit: 10 });
-  const { data: regTrend, isLoading: regLoading } = trpc.stats.registrationTrend.useQuery({ days: 14 });
+  const [scope, setScope] = useState<"human" | "agent">("human");
+  const scopeLabel = scope === "agent" ? "Agent" : "Human";
+  const profileScopeLabel = scope === "agent" ? "Agent 主人" : "Human";
+
+  const { data: tierDist, isLoading: tierLoading } = trpc.stats.tierDistribution.useQuery({ scope });
+  const { data: compTrends, isLoading: trendsLoading } = trpc.stats.competitionTrends.useQuery({ scope });
+  const { data: countryDist, isLoading: countryLoading } = trpc.stats.countryDistribution.useQuery({ scope });
+  const { data: topTraders, isLoading: tradersLoading } = trpc.stats.topTraders.useQuery({ limit: 10, scope });
+  const { data: instLeaderboard, isLoading: instLoading } = trpc.stats.institutionLeaderboard.useQuery({ limit: 10, scope });
+  const { data: regTrend, isLoading: regLoading } = trpc.stats.registrationTrend.useQuery({ days: 14, scope });
 
   const handleExportStats = () => {
     if (!tierDist) return;
@@ -27,7 +36,7 @@ export default function StatsPage() {
       段位: t.tier,
       用户数: t.count,
     }));
-    downloadCSV(rows, "trading_arena_tier_distribution");
+    downloadCSV(rows, `trading_arena_${scope}_tier_distribution`);
     toast.success("段位分布数据已导出");
   };
 
@@ -53,15 +62,33 @@ export default function StatsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-bold text-foreground">统计分析</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">平台数据可视化与深度分析</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{scopeLabel} 赛道数据可视化与深度分析</p>
         </div>
-        <button
-          onClick={handleExportStats}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          导出统计
-        </button>
+        <div className="flex items-center gap-2">
+          {SCOPE_OPTIONS.map((option) => {
+            const active = option.key === scope;
+            return (
+              <button
+                key={option.key}
+                onClick={() => setScope(option.key)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? "bg-[#F0B90B] text-black"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+          <button
+            onClick={handleExportStats}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            导出统计
+          </button>
+        </div>
       </div>
 
       {/* Row 1: Tier Distribution + Registration Trend */}
@@ -70,7 +97,7 @@ export default function StatsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <Award className="w-4 h-4 text-[#F0B90B]" />
-            段位分布
+            {scopeLabel} 段位分布
           </h3>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -119,7 +146,7 @@ export default function StatsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <Trophy className="w-4 h-4 text-[#F0B90B]" />
-            比赛参与趋势
+            {scopeLabel} 比赛参与趋势
           </h3>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -141,7 +168,7 @@ export default function StatsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <Globe className="w-4 h-4 text-[#3B82F6]" />
-            地区分布
+            {profileScopeLabel} 地区分布
           </h3>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -176,7 +203,7 @@ export default function StatsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-[#0ECB81]" />
-            赛季排行榜 Top 10
+            {scopeLabel} 赛季排行榜 Top 10
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -219,7 +246,7 @@ export default function StatsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <Building2 className="w-4 h-4 text-[#8B5CF6]" />
-            机构排行榜 Top 10
+            {profileScopeLabel} 机构排行榜 Top 10
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full">

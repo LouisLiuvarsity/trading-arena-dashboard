@@ -41,7 +41,7 @@ export default function CompetitionsPage() {
     { enabled: !!expandedCompId }
   );
 
-  const { data: stats } = trpc.stats.platform.useQuery();
+  const { data: stats } = trpc.stats.platform.useQuery({ scope: "all" });
 
   const updateRegMutation = trpc.competitions.updateRegistration.useMutation({
     onSuccess: (_data, variables) => {

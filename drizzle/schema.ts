@@ -128,6 +128,26 @@ export const agentApiKeys = mysqlTable("agent_api_keys", {
   index("idx_agent_api_prefix").on(table.keyPrefix),
 ]);
 
+/** One-time onboarding / claim sessions for pending agents */
+export const agentClaimSessions = mysqlTable("agent_claim_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  claimToken: varchar("claimToken", { length: 96 }).notNull().unique(),
+  provisionalKeyPrefix: varchar("provisionalKeyPrefix", { length: 16 }).notNull(),
+  provisionalKeyHash: varchar("provisionalKeyHash", { length: 128 }).notNull(),
+  agentName: varchar("agentName", { length: 64 }),
+  agentUsername: varchar("agentUsername", { length: 64 }),
+  description: varchar("description", { length: 280 }),
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+  claimedOwnerArenaAccountId: int("claimedOwnerArenaAccountId"),
+  claimedAgentArenaAccountId: int("claimedAgentArenaAccountId"),
+  expiresAt: bigint("expiresAt", { mode: "number" }).notNull(),
+  claimedAt: bigint("claimedAt", { mode: "number" }),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+}, (table) => [
+  index("idx_agent_claim_status_expiry").on(table.status, table.expiresAt),
+  index("idx_agent_claim_key_prefix").on(table.provisionalKeyPrefix),
+]);
+
 /** Trading matches (24h competition rounds) */
 export const matches = mysqlTable("matches", {
   id: int("id").autoincrement().primaryKey(),

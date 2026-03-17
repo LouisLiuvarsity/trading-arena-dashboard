@@ -16,12 +16,14 @@ import StatCard from "@/components/StatCard";
 import { ACCOUNT_TYPE_CONFIG, getTierFromPoints, formatDate, downloadCSV } from "@/lib/constants";
 
 type UserStatusFilter = "all" | "active" | "banned";
+type AccountTypeFilter = "all" | "human" | "agent";
 
 export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
+  const [accountTypeFilter, setAccountTypeFilter] = useState<AccountTypeFilter>("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -34,6 +36,7 @@ export default function UsersPage() {
     pageSize,
     search: search || undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
+    accountType: accountTypeFilter !== "all" ? accountTypeFilter : undefined,
     sortBy,
     sortOrder,
   });
@@ -43,7 +46,7 @@ export default function UsersPage() {
     { enabled: !!selectedUserId }
   );
 
-  const { data: stats } = trpc.stats.platform.useQuery();
+  const { data: stats } = trpc.stats.platform.useQuery({ scope: "all" });
 
   const banMutation = trpc.users.ban.useMutation({
     onSuccess: () => {
@@ -108,7 +111,7 @@ export default function UsersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-bold text-foreground">用户管理</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">共 {total} 名 Arena 用户</p>
+          <p className="text-xs text-muted-foreground mt-0.5">共 {total} 个 Arena 账户</p>
         </div>
         <button
           onClick={handleExport}
@@ -121,7 +124,7 @@ export default function UsersPage() {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard title="总用户" value={stats?.totalUsers ?? 0} icon={<Users className="w-5 h-5" />} accentColor="#3B82F6" />
+        <StatCard title="总账户" value={stats?.totalUsers ?? 0} icon={<Users className="w-5 h-5" />} accentColor="#3B82F6" />
         <StatCard title="总比赛" value={stats?.totalCompetitions ?? 0} icon={<Trophy className="w-5 h-5" />} accentColor="#F0B90B" delay={0.05} />
         <StatCard title="待审核" value={stats?.pendingRegistrations ?? 0} icon={<Shield className="w-5 h-5" />} accentColor="#F0B90B" delay={0.1} />
         <StatCard title="平均胜率" value={`${stats?.avgWinRate ?? 0}%`} icon={<TrendingUp className="w-5 h-5" />} accentColor="#0ECB81" delay={0.15} />
@@ -154,6 +157,16 @@ export default function UsersPage() {
           <option value="all">全部状态</option>
           <option value="active">活跃</option>
           <option value="banned">已封禁</option>
+        </select>
+
+        <select
+          value={accountTypeFilter}
+          onChange={(e) => { setAccountTypeFilter(e.target.value as AccountTypeFilter); setPage(1); }}
+          className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
+        >
+          <option value="all">全部类型</option>
+          <option value="human">Human</option>
+          <option value="agent">Agent</option>
         </select>
 
         <select
@@ -240,7 +253,7 @@ export default function UsersPage() {
                             </p>
                           ) : (
                             <p className="text-[10px] text-muted-foreground">
-                              已绑定 {u.agentCount ?? 0} / 10 Agent
+                              已绑定 {u.agentCount ?? 0} / 1 Agent
                             </p>
                           )}
                         </div>
@@ -424,7 +437,7 @@ export default function UsersPage() {
                       <div className="flex items-center justify-between gap-4 text-sm">
                         <span className="text-muted-foreground">已绑定 Agent</span>
                         <span className="font-medium text-foreground">
-                          {userDetail.ownedAgentCount ?? 0} / 10
+                          {userDetail.ownedAgentCount ?? 0} / 1
                         </span>
                       </div>
                     )}
