@@ -9,16 +9,16 @@ interface TierBadgeProps {
 export default function TierBadge({ tier, showLabel = true, size = "sm" }: TierBadgeProps) {
   const config = TIER_CONFIG[tier];
   if (!config) return null;
-  const dotSize = size === "sm" ? "w-2 h-2" : "w-2.5 h-2.5";
-  const textSize = size === "sm" ? "text-[10px]" : "text-xs";
+  const dotSize = size === "sm" ? "h-2 w-2" : "h-2.5 w-2.5";
+  const textSize = size === "sm" ? "text-[11px]" : "text-xs";
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full ${textSize} font-semibold`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${textSize} font-semibold`}
       style={{
-        background: `${config.color}15`,
+        background: `${config.color}14`,
         color: config.color,
-        border: `1px solid ${config.color}30`,
+        borderColor: `${config.color}24`,
       }}
     >
       <span className={`${dotSize} rounded-full`} style={{ background: config.color }} />

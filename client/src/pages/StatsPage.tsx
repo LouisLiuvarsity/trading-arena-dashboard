@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Loader2, Trophy, Download, TrendingUp, Globe, Award, Building2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import { toast } from "sonner";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -57,44 +58,52 @@ export default function StatsPage() {
   }));
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-bold text-foreground">统计分析</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">{scopeLabel} 赛道数据可视化与深度分析</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {SCOPE_OPTIONS.map((option) => {
-            const active = option.key === scope;
-            return (
-              <button
-                key={option.key}
-                onClick={() => setScope(option.key)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  active
-                    ? "bg-[#F0B90B] text-black"
-                    : "bg-secondary text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-          <button
-            onClick={handleExportStats}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            导出统计
-          </button>
-        </div>
-      </div>
+    <div className="mx-auto max-w-[1440px] space-y-6">
+      <AdminPageHeader
+        eyebrow="Analytics"
+        title="统计分析"
+        description={`${scopeLabel} 赛道的段位分布、报名趋势和榜单表现都在这里统一查看。`}
+        accentColor={scope === "agent" ? "#F0B90B" : "#0ECB81"}
+        icon={<TrendingUp className="h-4 w-4" />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {SCOPE_OPTIONS.map((option) => {
+              const active = option.key === scope;
+              return (
+                <button
+                  key={option.key}
+                  onClick={() => setScope(option.key)}
+                  className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+                    active
+                      ? "border-[#F0B90B]/25 bg-[#F0B90B]/10 text-[#F0B90B]"
+                      : "border-white/[0.08] bg-white/[0.03] text-[#AAB4C3] hover:bg-white/[0.05] hover:text-white"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+            <button
+              onClick={handleExportStats}
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#F0B90B]/20 bg-[#F0B90B]/10 px-4 py-2.5 text-sm font-medium text-[#F0B90B] transition-colors hover:bg-[#F0B90B]/15"
+            >
+              <Download className="h-4 w-4" />
+              导出统计
+            </button>
+          </div>
+        }
+        stats={[
+          { label: "当前赛道", value: scopeLabel, icon: <Award className="h-4 w-4" />, tone: scope === "agent" ? "gold" : "green" },
+          { label: "榜单人数", value: topTraders?.length ?? 0, icon: <Trophy className="h-4 w-4" />, tone: "gold" },
+          { label: "国家分布", value: countryDist?.length ?? 0, icon: <Globe className="h-4 w-4" />, tone: "blue" },
+          { label: "机构榜单", value: instLeaderboard?.length ?? 0, icon: <Building2 className="h-4 w-4" />, tone: "neutral" },
+        ]}
+      />
 
       {/* Row 1: Tier Distribution + Registration Trend */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Tier Distribution */}
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="admin-panel p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <Award className="w-4 h-4 text-[#F0B90B]" />
             {scopeLabel} 段位分布
@@ -119,7 +128,7 @@ export default function StatsPage() {
         </div>
 
         {/* Registration Trend */}
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="admin-panel p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-[#0ECB81]" />
             注册趋势（近14天）
@@ -143,7 +152,7 @@ export default function StatsPage() {
       {/* Row 2: Competition Trends + Country Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Competition Trends */}
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="admin-panel p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <Trophy className="w-4 h-4 text-[#F0B90B]" />
             {scopeLabel} 比赛参与趋势
@@ -165,7 +174,7 @@ export default function StatsPage() {
         </div>
 
         {/* Country Distribution */}
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="admin-panel p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <Globe className="w-4 h-4 text-[#3B82F6]" />
             {profileScopeLabel} 地区分布
@@ -200,7 +209,7 @@ export default function StatsPage() {
       {/* Row 3: Top Traders + Institution Leaderboard */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top Traders */}
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="admin-panel p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-[#0ECB81]" />
             {scopeLabel} 赛季排行榜 Top 10
@@ -243,7 +252,7 @@ export default function StatsPage() {
         </div>
 
         {/* Institution Leaderboard */}
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="admin-panel p-5">
           <h3 className="font-display font-bold text-sm text-foreground mb-4 flex items-center gap-2">
             <Building2 className="w-4 h-4 text-[#8B5CF6]" />
             {profileScopeLabel} 机构排行榜 Top 10

@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronUp, Loader2, Plus, Edit3, Copy, Archive, ArchiveRestore, Trash2, AlertTriangle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import { toast } from "sonner";
 import StatusBadge from "@/components/StatusBadge";
 import TierBadge from "@/components/TierBadge";
@@ -164,33 +165,41 @@ export default function CompetitionsPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-bold text-foreground">比赛管理</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">管理所有比赛、状态流转及报名审批</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCreateDialog(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-semibold hover:bg-[#F0B90B]/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            创建比赛
-          </button>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            导出 CSV
-          </button>
-        </div>
-      </div>
+    <div className="mx-auto max-w-[1440px] space-y-6">
+      <AdminPageHeader
+        eyebrow="Competition Ops"
+        title="比赛管理"
+        description="保留当前的 CRUD、状态流转和报名审批能力，同时让比赛后台更贴近主站最新的赛事控制视图。"
+        accentColor="#F0B90B"
+        icon={<Trophy className="h-4 w-4" />}
+        actions={
+          <>
+            <button
+              onClick={() => setShowCreateDialog(true)}
+              className="inline-flex items-center gap-2 rounded-2xl bg-[#F0B90B] px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-[#F0B90B]/90"
+            >
+              <Plus className="h-4 w-4" />
+              创建比赛
+            </button>
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#F0B90B]/20 bg-[#F0B90B]/10 px-4 py-2.5 text-sm font-medium text-[#F0B90B] transition-colors hover:bg-[#F0B90B]/15"
+            >
+              <Download className="h-4 w-4" />
+              导出 CSV
+            </button>
+          </>
+        }
+        stats={[
+          { label: "总比赛数", value: stats?.totalCompetitions ?? 0, icon: <Trophy className="h-4 w-4" />, tone: "gold" },
+          { label: "Human Lane", value: humanCompetitionCount, icon: <Users className="h-4 w-4" />, tone: "blue" },
+          { label: "Agent Lane", value: agentCompetitionCount, icon: <Users className="h-4 w-4" />, tone: "green" },
+          { label: "已归档", value: archivedCount, icon: <Archive className="h-4 w-4" />, tone: "neutral" },
+        ]}
+      />
 
       {/* Archive Filter Tabs */}
-      <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1 w-fit">
+      <div className="admin-toolbar w-fit">
         {([
           { key: "active" as const, label: "活跃" },
           { key: "archived" as const, label: `已归档${archivedCount > 0 ? ` (${archivedCount})` : ""}` },
@@ -244,11 +253,7 @@ export default function CompetitionsPage() {
           const isPurgedEndedEarly = comp.status === "ended_early" && comp.archived === 1;
 
           return (
-            <motion.div
-              key={comp.id}
-              layout
-              className="rounded-xl border border-border bg-card overflow-hidden"
-            >
+            <motion.div key={comp.id} layout className="admin-panel overflow-hidden">
               {/* Competition Header */}
               <div className="p-4 lg:p-5">
                 <div className="flex items-center justify-between">
@@ -450,7 +455,7 @@ export default function CompetitionsPage() {
                           <Loader2 className="w-5 h-5 animate-spin text-[#F0B90B]" />
                         </div>
                       ) : filteredRegs.length > 0 ? (
-                        <div className="overflow-x-auto rounded-lg border border-border">
+                        <div className="admin-table-frame overflow-x-auto rounded-2xl">
                           <table className="w-full">
                             <thead>
                               <tr className="bg-secondary/50 border-b border-border">

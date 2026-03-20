@@ -7,6 +7,7 @@ import {
   Calendar, Plus, Trophy, Loader2, Hash, Archive, ArchiveRestore, Trash2, AlertTriangle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import { toast } from "sonner";
 import StatusBadge from "@/components/StatusBadge";
 import StatCard from "@/components/StatCard";
@@ -102,24 +103,32 @@ export default function SeasonsPage() {
   const totalComps = (seasons || []).reduce((s, r) => s + r.competitionCount, 0);
 
   return (
-    <div className="space-y-4 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-bold text-foreground">赛季管理</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">管理所有赛季，创建新赛季</p>
-        </div>
-        <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-semibold hover:bg-[#F0B90B]/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          创建赛季
-        </button>
-      </div>
+    <div className="mx-auto max-w-[1440px] space-y-6">
+      <AdminPageHeader
+        eyebrow="Season Planning"
+        title="赛季管理"
+        description="按月维护赛季周期，控制归档和删除前置条件，保证比赛数据的生命周期清晰可追踪。"
+        accentColor="#F0B90B"
+        icon={<Calendar className="h-4 w-4" />}
+        actions={
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            className="inline-flex items-center gap-2 rounded-2xl bg-[#F0B90B] px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-[#F0B90B]/90"
+          >
+            <Plus className="h-4 w-4" />
+            创建赛季
+          </button>
+        }
+        stats={[
+          { label: "总赛季数", value: (seasons || []).length, icon: <Calendar className="h-4 w-4" />, tone: "gold" },
+          { label: "进行中", value: activeSeasons, icon: <Trophy className="h-4 w-4" />, tone: "green" },
+          { label: "总比赛数", value: totalComps, icon: <Hash className="h-4 w-4" />, tone: "blue" },
+          { label: "已归档", value: archivedCount, icon: <Archive className="h-4 w-4" />, tone: "neutral" },
+        ]}
+      />
 
       {/* Archive Filter Tabs */}
-      <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1 w-fit">
+      <div className="admin-toolbar w-fit">
         {([
           { key: "active" as const, label: "活跃" },
           { key: "archived" as const, label: `已归档${archivedCount > 0 ? ` (${archivedCount})` : ""}` },
@@ -152,7 +161,7 @@ export default function SeasonsPage() {
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: "auto", opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
-          className="rounded-xl border border-border bg-card p-5 space-y-4"
+          className="admin-panel space-y-4 p-5"
         >
           <h3 className="text-sm font-bold text-foreground">创建新赛季</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -222,7 +231,7 @@ export default function SeasonsPage() {
           <motion.div
             key={season.id}
             layout
-            className="rounded-xl border border-border bg-card p-4 lg:p-5"
+            className="admin-panel p-4 lg:p-5"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">

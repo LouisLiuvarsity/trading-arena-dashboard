@@ -1,17 +1,26 @@
 /**
- * ChatPage — Chat message moderation with real API
+ * ChatPage - Chat message moderation with real API
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  MessageSquare, Eye, EyeOff, Trash2, RotateCcw, Download,
-  Search, ChevronLeft, ChevronRight, Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Eye,
+  EyeOff,
+  Loader2,
+  MessageSquare,
+  RotateCcw,
+  Search,
+  Trash2,
 } from "lucide-react";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import StatusBadge from "@/components/StatusBadge";
 import TierBadge from "@/components/TierBadge";
-import { formatDate, downloadCSV, getTierFromPoints } from "@/lib/constants";
+import { formatDate, downloadCSV } from "@/lib/constants";
+import { trpc } from "@/lib/trpc";
 
 type ChatFilterStatus = "all" | "visible" | "hidden" | "deleted";
 type ChatModerationStatus = Exclude<ChatFilterStatus, "all">;
@@ -46,7 +55,15 @@ export default function ChatPage() {
 
   const batchModerateMutation = trpc.chat.batchModerate.useMutation({
     onSuccess: (_data, variables) => {
-      toast.success(`已将 ${variables.messageIds.length} 条消息设为 ${variables.status === "hidden" ? "隐藏" : variables.status === "deleted" ? "删除" : "可见"}`);
+      toast.success(
+        `已将 ${variables.messageIds.length} 条消息设为 ${
+          variables.status === "hidden"
+            ? "隐藏"
+            : variables.status === "deleted"
+              ? "删除"
+              : "可见"
+        }`,
+      );
       utils.chat.list.invalidate();
       setSelectedIds(new Set());
     },
@@ -63,7 +80,7 @@ export default function ChatPage() {
   };
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -75,7 +92,7 @@ export default function ChatPage() {
     if (selectedIds.size === messages.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(messages.map(m => m.id)));
+      setSelectedIds(new Set(messages.map((m) => m.id)));
     }
   };
 
@@ -91,7 +108,7 @@ export default function ChatPage() {
 
   const handleExport = () => {
     if (!messages.length) return;
-    const rows = messages.map(m => ({
+    const rows = messages.map((m) => ({
       ID: m.id,
       比赛: m.competitionTitle || `Competition #${m.competitionId}`,
       用户: m.username || `User #${m.arenaAccountId}`,
@@ -104,56 +121,88 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="space-y-4 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-bold text-foreground">聊天管理</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">审核和管理比赛聊天消息</p>
-        </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          导出 CSV
-        </button>
-      </div>
+    <div className="mx-auto max-w-[1440px] space-y-6">
+      <AdminPageHeader
+        eyebrow="Chat Moderation"
+        title="聊天管理"
+        description="保留现有的隐藏、删除和恢复逻辑，用更清晰的审查面板管理比赛聊天消息。"
+        accentColor="#F0B90B"
+        icon={<MessageSquare className="h-4 w-4" />}
+        actions={
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-2xl border border-[#F0B90B]/20 bg-[#F0B90B]/10 px-4 py-2.5 text-sm font-medium text-[#F0B90B] transition-colors hover:bg-[#F0B90B]/15"
+          >
+            <Download className="h-4 w-4" />
+            导出 CSV
+          </button>
+        }
+        stats={[
+          {
+            label: "消息总数",
+            value: total,
+            icon: <MessageSquare className="h-4 w-4" />,
+            tone: "gold",
+          },
+          {
+            label: "当前筛选",
+            value: statusFilter,
+            icon: <Eye className="h-4 w-4" />,
+            tone: "blue",
+          },
+          {
+            label: "已选择",
+            value: selectedIds.size,
+            icon: <Trash2 className="h-4 w-4" />,
+            tone: selectedIds.size > 0 ? "red" : "neutral",
+          },
+        ]}
+      />
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-md">
+      <div className="admin-toolbar">
+        <div className="flex min-w-[200px] max-w-md flex-1 items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               placeholder="搜索消息内容或用户名..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]/50"
+              className="admin-control w-full py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground"
             />
           </div>
-          <button onClick={handleSearch} className="px-3 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-medium hover:bg-[#F0B90B]/90">
+          <button
+            onClick={handleSearch}
+            className="rounded-lg bg-[#F0B90B] px-3 py-2 text-sm font-medium text-black hover:bg-[#F0B90B]/90"
+          >
             搜索
           </button>
         </div>
 
         <select
           value={compFilter ?? "all"}
-          onChange={(e) => { setCompFilter(e.target.value === "all" ? undefined : Number(e.target.value)); setPage(1); }}
-          className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
+          onChange={(e) => {
+            setCompFilter(e.target.value === "all" ? undefined : Number(e.target.value));
+            setPage(1);
+          }}
+          className="admin-control px-3 py-2 text-sm"
         >
           <option value="all">全部比赛</option>
-          {(competitions || []).map(c => (
-            <option key={c.id} value={c.id}>{c.title}</option>
+          {(competitions || []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
+            </option>
           ))}
         </select>
 
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value as ChatFilterStatus); setPage(1); }}
-          className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
+          onChange={(e) => {
+            setStatusFilter(e.target.value as ChatFilterStatus);
+            setPage(1);
+          }}
+          className="admin-control px-3 py-2 text-sm"
         >
           <option value="all">全部状态</option>
           <option value="visible">可见</option>
@@ -162,45 +211,43 @@ export default function ChatPage() {
         </select>
       </div>
 
-      {/* Batch Actions */}
-      {selectedIds.size > 0 && (
+      {selectedIds.size > 0 ? (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 border border-border"
+          className="admin-toolbar"
         >
           <span className="text-xs text-muted-foreground">已选 {selectedIds.size} 条</span>
           <button
             onClick={() => handleBatchModerate("hidden")}
-            className="px-3 py-1.5 rounded-lg bg-[oklch(0.82_0.15_85/15%)] text-[#F0B90B] text-xs font-medium hover:bg-[oklch(0.82_0.15_85/25%)] transition-colors"
+            className="rounded-lg bg-[oklch(0.82_0.15_85/15%)] px-3 py-1.5 text-xs font-medium text-[#F0B90B] transition-colors hover:bg-[oklch(0.82_0.15_85/25%)]"
           >
-            <EyeOff className="w-3 h-3 inline mr-1" />
+            <EyeOff className="mr-1 inline h-3 w-3" />
             批量隐藏
           </button>
           <button
             onClick={() => handleBatchModerate("deleted")}
-            className="px-3 py-1.5 rounded-lg bg-[oklch(0.65_0.2_25/15%)] text-[#F6465D] text-xs font-medium hover:bg-[oklch(0.65_0.2_25/25%)] transition-colors"
+            className="rounded-lg bg-[oklch(0.65_0.2_25/15%)] px-3 py-1.5 text-xs font-medium text-[#F6465D] transition-colors hover:bg-[oklch(0.65_0.2_25/25%)]"
           >
-            <Trash2 className="w-3 h-3 inline mr-1" />
+            <Trash2 className="mr-1 inline h-3 w-3" />
             批量删除
           </button>
           <button
             onClick={() => handleBatchModerate("visible")}
-            className="px-3 py-1.5 rounded-lg bg-[oklch(0.65_0.2_145/15%)] text-[#0ECB81] text-xs font-medium hover:bg-[oklch(0.65_0.2_145/25%)] transition-colors"
+            className="rounded-lg bg-[oklch(0.65_0.2_145/15%)] px-3 py-1.5 text-xs font-medium text-[#0ECB81] transition-colors hover:bg-[oklch(0.65_0.2_145/25%)]"
           >
-            <RotateCcw className="w-3 h-3 inline mr-1" />
+            <RotateCcw className="mr-1 inline h-3 w-3" />
             批量恢复
           </button>
         </motion.div>
-      )}
+      ) : null}
 
-      {/* Messages Table */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-6 h-6 animate-spin text-[#F0B90B]" />
+        <div className="flex h-64 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#F0B90B]" />
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="admin-table-frame">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -215,7 +262,9 @@ export default function ChatPage() {
                   </th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground">用户</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground">比赛</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[300px]">消息内容</th>
+                  <th className="min-w-[300px] px-3 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    消息内容
+                  </th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground">状态</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-muted-foreground">时间</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold text-muted-foreground">操作</th>
@@ -223,7 +272,7 @@ export default function ChatPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {messages.map((msg) => (
-                  <tr key={msg.id} className="hover:bg-secondary/20 transition-colors">
+                  <tr key={msg.id} className="transition-colors hover:bg-secondary/20">
                     <td className="px-3 py-3">
                       <input
                         type="checkbox"
@@ -234,81 +283,94 @@ export default function ChatPage() {
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-foreground shrink-0">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground">
                           {(msg.username || "?").charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-foreground">{msg.username || `User #${msg.arenaAccountId}`}</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {msg.username || `User #${msg.arenaAccountId}`}
+                          </p>
                           <TierBadge tier="iron" />
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground max-w-[120px] truncate">
+                    <td className="max-w-[120px] truncate px-3 py-3 text-xs text-muted-foreground">
                       {msg.competitionTitle || `Competition #${msg.competitionId}`}
                     </td>
                     <td className="px-3 py-3">
-                      <p className={`text-sm ${msg.moderationStatus === "deleted" ? "line-through text-muted-foreground" : msg.moderationStatus === "hidden" ? "text-muted-foreground italic" : "text-foreground"}`}>
+                      <p
+                        className={`text-sm ${
+                          msg.moderationStatus === "deleted"
+                            ? "line-through text-muted-foreground"
+                            : msg.moderationStatus === "hidden"
+                              ? "italic text-muted-foreground"
+                              : "text-foreground"
+                        }`}
+                      >
                         {msg.message}
                       </p>
                     </td>
-                    <td className="px-3 py-3"><StatusBadge status={msg.moderationStatus} /></td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.timestamp)}</td>
+                    <td className="px-3 py-3">
+                      <StatusBadge status={msg.moderationStatus} />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">
+                      {formatDate(msg.timestamp)}
+                    </td>
                     <td className="px-3 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
                         {msg.moderationStatus === "visible" ? (
                           <>
                             <button
                               onClick={() => handleModerate(msg.id, "hidden")}
-                              className="p-1 rounded-md hover:bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] transition-colors"
+                              className="rounded-md p-1 text-[#F0B90B] transition-colors hover:bg-[oklch(0.82_0.15_85/10%)]"
                               title="隐藏"
                             >
-                              <EyeOff className="w-4 h-4" />
+                              <EyeOff className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleModerate(msg.id, "deleted")}
-                              className="p-1 rounded-md hover:bg-[oklch(0.65_0.2_25/10%)] text-[#F6465D] transition-colors"
+                              className="rounded-md p-1 text-[#F6465D] transition-colors hover:bg-[oklch(0.65_0.2_25/10%)]"
                               title="删除"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </>
                         ) : (
                           <button
                             onClick={() => handleModerate(msg.id, "visible")}
-                            className="p-1 rounded-md hover:bg-[oklch(0.65_0.2_145/10%)] text-[#0ECB81] transition-colors"
+                            className="rounded-md p-1 text-[#0ECB81] transition-colors hover:bg-[oklch(0.65_0.2_145/10%)]"
                             title="恢复"
                           >
-                            <RotateCcw className="w-4 h-4" />
+                            <RotateCcw className="h-4 w-4" />
                           </button>
                         )}
                       </div>
                     </td>
                   </tr>
                 ))}
-                {messages.length === 0 && (
+                {messages.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       暂无聊天消息
                     </td>
                   </tr>
-                )}
+                ) : null}
               </tbody>
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+          {totalPages > 1 ? (
+            <div className="flex items-center justify-between border-t border-border px-4 py-3">
               <p className="text-xs text-muted-foreground">
-                第 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} 条，共 {total} 条
+                第 {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} 条，共 {total} 条
               </p>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground disabled:opacity-30"
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary disabled:opacity-30"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   const p = page <= 3 ? i + 1 : page + i - 2;
@@ -317,22 +379,26 @@ export default function ChatPage() {
                     <button
                       key={p}
                       onClick={() => setPage(p)}
-                      className={`w-8 h-8 rounded-md text-xs font-medium ${p === page ? "bg-[#F0B90B] text-black" : "text-muted-foreground hover:bg-secondary"}`}
+                      className={`h-8 w-8 rounded-md text-xs font-medium ${
+                        p === page
+                          ? "bg-[#F0B90B] text-black"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
                     >
                       {p}
                     </button>
                   );
                 })}
                 <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground disabled:opacity-30"
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary disabled:opacity-30"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

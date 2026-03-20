@@ -7,6 +7,7 @@ import {
   Shield, UserX, UserCheck, MessageSquare, Trophy, Settings,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import { toast } from "sonner";
 import { formatDate, downloadCSV } from "@/lib/constants";
 
@@ -64,24 +65,41 @@ export default function AdminLogsPage() {
   };
 
   return (
-    <div className="space-y-4 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-bold text-foreground">操作日志</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">所有管理操作的审计记录</p>
-        </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          导出 CSV
-        </button>
-      </div>
+    <div className="mx-auto max-w-[1440px] space-y-6">
+      <AdminPageHeader
+        eyebrow="Audit Trail"
+        title="操作日志"
+        description="聚合所有后台关键动作，便于追踪封禁、审批和聊天治理等审计记录。"
+        accentColor="#F0B90B"
+        icon={<FileText className="h-4 w-4" />}
+        actions={
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-2xl border border-[#F0B90B]/20 bg-[#F0B90B]/10 px-4 py-2.5 text-sm font-medium text-[#F0B90B] transition-colors hover:bg-[#F0B90B]/15"
+          >
+            <Download className="h-4 w-4" />
+            导出 CSV
+          </button>
+        }
+        stats={[
+          { label: "日志总数", value: total, icon: <FileText className="h-4 w-4" />, tone: "gold" },
+          {
+            label: "当前页",
+            value: `${page}/${Math.max(totalPages, 1)}`,
+            icon: <Shield className="h-4 w-4" />,
+            tone: "neutral",
+          },
+          {
+            label: "已筛选动作",
+            value: actionFilter ?? "全部",
+            icon: <Settings className="h-4 w-4" />,
+            tone: "blue",
+          },
+        ]}
+      />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="admin-toolbar">
         <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-md">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -91,7 +109,7 @@ export default function AdminLogsPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]/50"
+              className="admin-control w-full pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground"
             />
           </div>
           <button onClick={handleSearch} className="px-3 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-medium hover:bg-[#F0B90B]/90">
@@ -102,7 +120,7 @@ export default function AdminLogsPage() {
         <select
           value={actionFilter ?? "all"}
           onChange={(e) => { setActionFilter(e.target.value === "all" ? undefined : e.target.value); setPage(1); }}
-          className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
+          className="admin-control px-3 py-2 text-sm"
         >
           <option value="all">全部操作</option>
           <option value="user_ban">封禁用户</option>
@@ -121,7 +139,7 @@ export default function AdminLogsPage() {
           <Loader2 className="w-6 h-6 animate-spin text-[#F0B90B]" />
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="admin-table-frame">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>

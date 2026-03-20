@@ -17,38 +17,43 @@ export default function StatCard({ title, value, subtitle, icon, trend, accentCo
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay }}
-      className="relative overflow-hidden rounded-xl border border-border bg-card p-4 lg:p-5"
+      className="admin-panel relative overflow-hidden p-4 lg:p-5"
     >
-      {/* Accent glow */}
       <div
-        className="absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl opacity-[0.07]"
-        style={{ background: accentColor }}
+        className="absolute inset-x-0 top-0 h-full opacity-90"
+        style={{
+          background: `radial-gradient(circle at top right, ${accentColor}20, transparent 34%), linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))`,
+        }}
       />
 
-      <div className="flex items-start justify-between relative">
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium">{title}</p>
-          <p className="text-2xl lg:text-3xl font-display font-bold text-foreground tracking-tight">
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="space-y-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7E899B]">{title}</p>
+          <p className="text-2xl font-display font-bold tracking-tight text-white lg:text-3xl">
             {value}
           </p>
           {subtitle && (
-            <p className="text-[11px] text-muted-foreground">{subtitle}</p>
+            <p className="text-xs text-[#95A0B0]">{subtitle}</p>
           )}
           {trend && (
-            <div className="flex items-center gap-1">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.06] bg-black/10 px-2.5 py-1">
               <span
                 className="text-xs font-mono font-semibold"
                 style={{ color: trend.value >= 0 ? "#0ECB81" : "#F6465D" }}
               >
                 {trend.value >= 0 ? "+" : ""}{trend.value}%
               </span>
-              <span className="text-[10px] text-muted-foreground">{trend.label}</span>
+              <span className="text-[10px] text-[#7E899B]">{trend.label}</span>
             </div>
           )}
         </div>
         <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: `${accentColor}15`, color: accentColor }}
+          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border"
+          style={{
+            backgroundColor: `${accentColor}15`,
+            borderColor: `${accentColor}20`,
+            color: accentColor,
+          }}
         >
           {icon}
         </div>

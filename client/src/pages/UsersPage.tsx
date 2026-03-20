@@ -9,6 +9,7 @@ import {
   GraduationCap, Calendar, Loader2, Users, TrendingUp,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import { toast } from "sonner";
 import TierBadge from "@/components/TierBadge";
 import StatusBadge from "@/components/StatusBadge";
@@ -106,21 +107,44 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="space-y-4 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-bold text-foreground">用户管理</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">共 {total} 个 Arena 账户</p>
-        </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[oklch(0.82_0.15_85/10%)] text-[#F0B90B] text-sm font-medium hover:bg-[oklch(0.82_0.15_85/15%)] transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          导出 CSV
-        </button>
-      </div>
+    <div className="mx-auto max-w-[1440px] space-y-6">
+      <AdminPageHeader
+        eyebrow="Account Ops"
+        title="用户管理"
+        description="查看人类与 Agent 账户状态，执行封禁、解封和详情审查，不改变现有业务流程。"
+        accentColor="#7AA2F7"
+        icon={<Users className="h-4 w-4" />}
+        actions={
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-2xl border border-[#F0B90B]/20 bg-[#F0B90B]/10 px-4 py-2.5 text-sm font-medium text-[#F0B90B] transition-colors hover:bg-[#F0B90B]/15"
+          >
+            <Download className="h-4 w-4" />
+            导出 CSV
+          </button>
+        }
+        stats={[
+          { label: "总账户", value: total, icon: <Users className="h-4 w-4" />, tone: "blue" },
+          {
+            label: "当前页",
+            value: `${page}/${Math.max(totalPages, 1)}`,
+            icon: <Eye className="h-4 w-4" />,
+            tone: "neutral",
+          },
+          {
+            label: "待处理报名",
+            value: stats?.pendingRegistrations ?? 0,
+            icon: <Shield className="h-4 w-4" />,
+            tone: "gold",
+          },
+          {
+            label: "平均胜率",
+            value: `${stats?.avgWinRate ?? 0}%`,
+            icon: <TrendingUp className="h-4 w-4" />,
+            tone: "green",
+          },
+        ]}
+      />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -131,7 +155,7 @@ export default function UsersPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="admin-toolbar">
         <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-md">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -141,7 +165,7 @@ export default function UsersPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]/50"
+              className="admin-control w-full pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground"
             />
           </div>
           <button onClick={handleSearch} className="px-3 py-2 rounded-lg bg-[#F0B90B] text-black text-sm font-medium hover:bg-[#F0B90B]/90">
@@ -152,7 +176,7 @@ export default function UsersPage() {
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value as UserStatusFilter); setPage(1); }}
-          className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
+          className="admin-control px-3 py-2 text-sm"
         >
           <option value="all">全部状态</option>
           <option value="active">活跃</option>
@@ -162,7 +186,7 @@ export default function UsersPage() {
         <select
           value={accountTypeFilter}
           onChange={(e) => { setAccountTypeFilter(e.target.value as AccountTypeFilter); setPage(1); }}
-          className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
+          className="admin-control px-3 py-2 text-sm"
         >
           <option value="all">全部类型</option>
           <option value="human">Human</option>
@@ -172,7 +196,7 @@ export default function UsersPage() {
         <select
           value={sortBy}
           onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
-          className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none"
+          className="admin-control px-3 py-2 text-sm"
         >
           <option value="createdAt">注册时间</option>
           <option value="seasonPoints">赛季积分</option>
@@ -182,7 +206,7 @@ export default function UsersPage() {
 
         <button
           onClick={() => setSortOrder(o => o === "asc" ? "desc" : "asc")}
-          className="px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/80"
+          className="admin-control px-3 py-2 text-sm"
         >
           {sortOrder === "desc" ? "↓ 降序" : "↑ 升序"}
         </button>
@@ -194,7 +218,7 @@ export default function UsersPage() {
           <Loader2 className="w-6 h-6 animate-spin text-[#F0B90B]" />
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="admin-table-frame">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -365,9 +389,9 @@ export default function UsersPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-card border-l border-border z-50 overflow-y-auto"
+              className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-lg overflow-y-auto border-l border-white/[0.08] bg-[#111722] shadow-[0_24px_90px_rgba(0,0,0,0.45)]"
             >
-              <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-6 py-4 flex items-center justify-between z-10">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/[0.08] bg-[#111722]/95 px-6 py-4 backdrop-blur-sm">
                 <h3 className="font-display font-bold text-foreground">用户详情</h3>
                 <button onClick={() => setSelectedUserId(null)} className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground">
                   <X className="w-5 h-5" />

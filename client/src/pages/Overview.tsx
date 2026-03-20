@@ -4,18 +4,17 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Users, Trophy, Clock, Activity, DollarSign, Globe, Loader2,
+  Activity, BarChart3, Clock, DollarSign, Globe, Loader2, Trophy, Users,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar,
 } from "recharts";
 import { trpc } from "@/lib/trpc";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import StatCard from "@/components/StatCard";
 import StatusBadge from "@/components/StatusBadge";
 import { TIER_CONFIG, type RankTier } from "@/lib/constants";
-
-const HERO_BG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663325188422/6Yq9eJsfZbyndNatnSjnyG/hero-banner-dBxu2K7U3KYfS6RayVCXPZ.webp";
 
 const SCOPE_OPTIONS = [
   { key: "human", label: "Human" },
@@ -53,53 +52,71 @@ export default function Overview() {
   }
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      <div className="flex items-center justify-end gap-2">
-        {SCOPE_OPTIONS.map((option) => {
-          const active = option.key === scope;
-          return (
-            <button
-              key={option.key}
-              onClick={() => setScope(option.key)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                active
-                  ? "bg-[#F0B90B] text-black"
-                  : "bg-secondary text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Hero Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative rounded-2xl overflow-hidden border border-border"
-      >
-        <img src={HERO_BG} alt="" className="w-full h-36 lg:h-44 object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0B0E11]/90 via-[#0B0E11]/60 to-transparent" />
-        <div className="absolute inset-0 flex items-center px-6 lg:px-8">
-          <div>
-            <h1 className="font-display text-2xl lg:text-3xl font-bold text-white tracking-tight">
-              Trading Arena <span className="text-[#F0B90B]">管理后台</span>
-            </h1>
-            <p className="text-sm text-[#D1D4DC] mt-1">
-              {scopeLabel} 赛道运营数据 · 实时监控 · 快速管理
-            </p>
-            <div className="flex items-center gap-4 mt-3">
-              {liveComps.map((c) => (
-                <div key={c.id} className="flex items-center gap-2">
-                  <StatusBadge status={c.status} pulse />
-                  <span className="text-xs text-[#D1D4DC]">{c.title}</span>
-                </div>
-              ))}
-            </div>
+    <div className="mx-auto max-w-[1440px] space-y-6">
+      <AdminPageHeader
+        eyebrow="Operations Overview"
+        title="总览"
+        description={`${scopeLabel} 赛道的实时运营数据、赛况密度和关键风险项都集中在这里，方便你快速切换到需要处理的页面。`}
+        accentColor={scope === "agent" ? "#F0B90B" : "#7AA2F7"}
+        icon={<BarChart3 className="h-4 w-4" />}
+        actions={
+          <div className="flex items-center gap-2">
+            {SCOPE_OPTIONS.map((option) => {
+              const active = option.key === scope;
+              return (
+                <button
+                  key={option.key}
+                  onClick={() => setScope(option.key)}
+                  className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+                    active
+                      ? "border-[#F0B90B]/25 bg-[#F0B90B]/10 text-[#F0B90B]"
+                      : "border-white/[0.08] bg-white/[0.03] text-[#AAB4C3] hover:bg-white/[0.05] hover:text-white"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
+        }
+        stats={[
+          {
+            label: "当前赛道",
+            value: scopeLabel,
+            icon: <Users className="h-4 w-4" />,
+            tone: scope === "agent" ? "gold" : "blue",
+          },
+          {
+            label: "活跃比赛",
+            value: liveComps.length,
+            icon: <Trophy className="h-4 w-4" />,
+            tone: "green",
+          },
+          {
+            label: "待处理报名",
+            value: stats?.pendingRegistrations ?? 0,
+            icon: <Clock className="h-4 w-4" />,
+            tone: "gold",
+          },
+          {
+            label: "累计交易",
+            value: (stats?.totalTrades ?? 0).toLocaleString(),
+            icon: <Activity className="h-4 w-4" />,
+            tone: "neutral",
+          },
+        ]}
+      />
+
+      {liveComps.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {liveComps.slice(0, 4).map((c) => (
+            <div key={c.id} className="admin-chip">
+              <StatusBadge status={c.status} pulse />
+              <span className="text-xs text-[#D6DDE7]">{c.title}</span>
+            </div>
+          ))}
         </div>
-      </motion.div>
+      ) : null}
 
       {/* Key Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
@@ -148,7 +165,7 @@ export default function Overview() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
-          className="lg:col-span-2 rounded-xl border border-border bg-card p-5"
+          className="admin-panel p-5 lg:col-span-2"
         >
           <h3 className="font-display font-semibold text-sm text-foreground mb-4">用户注册趋势（近14天）</h3>
           <ResponsiveContainer width="100%" height={200}>
@@ -174,7 +191,7 @@ export default function Overview() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="rounded-xl border border-border bg-card p-5"
+          className="admin-panel p-5"
         >
           <h3 className="font-display font-semibold text-sm text-foreground mb-4">{scopeLabel} 段位分布</h3>
           <div className="flex items-center justify-center">
@@ -217,7 +234,7 @@ export default function Overview() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
-        className="rounded-xl border border-border bg-card p-5"
+        className="admin-panel p-5"
       >
         <h3 className="font-display font-semibold text-sm text-foreground mb-4 flex items-center gap-2">
           <Globe className="w-4 h-4 text-[#3B82F6]" />
