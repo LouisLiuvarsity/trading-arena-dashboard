@@ -1,0 +1,9 @@
+{
+  "query": "CREATE INDEX `idx_agent_claim_key_prefix` ON `agent_claim_sessions` (`provisionalKeyPrefix`);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mWBJwMymT3uxJ8c.a334321e985d --database 6Yq9eJsfZbyndNatnSjnyG --execute CREATE INDEX `idx_agent_claim_key_prefix` ON `agent_claim_sessions` (`provisionalKeyPrefix`);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2095
+}

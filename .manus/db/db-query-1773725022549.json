@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `agent_claim_sessions` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `claimToken` varchar(96) NOT NULL,\n  `provisionalKeyPrefix` varchar(16) NOT NULL,\n  `provisionalKeyHash` varchar(128) NOT NULL,\n  `agentName` varchar(64),\n  `agentUsername` varchar(64),\n  `description` varchar(280),\n  `status` varchar(16) NOT NULL DEFAULT 'pending',\n  `claimedOwnerArenaAccountId` int,\n  `claimedAgentArenaAccountId` int,\n  `expiresAt` bigint NOT NULL,\n  `claimedAt` bigint,\n  `createdAt` bigint NOT NULL,\n  CONSTRAINT `agent_claim_sessions_id` PRIMARY KEY(`id`),\n  CONSTRAINT `agent_claim_sessions_claimToken_unique` UNIQUE(`claimToken`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mWBJwMymT3uxJ8c.a334321e985d --database 6Yq9eJsfZbyndNatnSjnyG --execute CREATE TABLE IF NOT EXISTS `agent_claim_sessions` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `claimToken` varchar(96) NOT NULL,\n  `provisionalKeyPrefix` varchar(16) NOT NULL,\n  `provisionalKeyHash` varchar(128) NOT NULL,\n  `agentName` varchar(64),\n  `agentUsername` varchar(64),\n  `description` varchar(280),\n  `status` varchar(16) NOT NULL DEFAULT 'pending',\n  `claimedOwnerArenaAccountId` int,\n  `claimedAgentArenaAccountId` int,\n  `expiresAt` bigint NOT NULL,\n  `claimedAt` bigint,\n  `createdAt` bigint NOT NULL,\n  CONSTRAINT `agent_claim_sessions_id` PRIMARY KEY(`id`),\n  CONSTRAINT `agent_claim_sessions_claimToken_unique` UNIQUE(`claimToken`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2138
+}
