@@ -602,6 +602,7 @@ export async function createCompetitionDirect(input: {
   requireMinSeasonPoints?: number;
   requireMinTier?: string;
   inviteOnly?: boolean;
+  duelPairId?: number | null;
   coverImageUrl?: string;
   createdBy?: number;
 }): Promise<number> {
@@ -618,7 +619,7 @@ export async function createCompetitionDirect(input: {
         status, matchId, maxParticipants, minParticipants, registrationOpenAt,
         registrationCloseAt, startTime, endTime, symbol, startingCapital,
         maxTradesPerMatch, closeOnlySeconds, feeRate, prizePool, prizeTableJson,
-        pointsTableJson, requireMinSeasonPoints, requireMinTier, inviteOnly,
+        pointsTableJson, requireMinSeasonPoints, requireMinTier, inviteOnly, duelPairId,
         coverImageUrl, createdBy, archived, createdAt, updatedAt
       ) VALUES (
         ${input.seasonId}, ${input.title}, ${input.slug}, ${input.description ?? null},
@@ -630,7 +631,7 @@ export async function createCompetitionDirect(input: {
         ${input.closeOnlySeconds ?? 1800}, ${input.feeRate ?? 0.0005},
         ${input.prizePool ?? 500}, ${null}, ${null},
         ${input.requireMinSeasonPoints ?? 0}, ${input.requireMinTier ?? null},
-        ${input.inviteOnly ? 1 : 0}, ${input.coverImageUrl ?? null},
+        ${input.inviteOnly ? 1 : 0}, ${input.duelPairId ?? null}, ${input.coverImageUrl ?? null},
         ${input.createdBy ?? null}, ${0}, ${now}, ${now}
       )
     `);
@@ -646,7 +647,7 @@ export async function createCompetitionDirect(input: {
       throw new Error(`比赛 slug「${input.slug}」已存在，请使用不同的 slug`);
     }
     if (fullMsg.includes("Unknown column")) {
-      throw new Error(`数据库缺少必要的列（archived/coverImageUrl），请重启服务以自动修复 schema`);
+      throw new Error(`数据库缺少必要的列（archived/coverImageUrl/duelPairId），请重启服务以自动修复 schema`);
     }
     console.error("[createCompetitionDirect] SQL error:", { code: err?.code, sqlMessage: err?.sqlMessage, errno: err?.errno });
     throw new Error(`创建比赛失败: ${diagnostic || fullMsg.slice(0, 300)}`);
@@ -694,6 +695,7 @@ export async function getCompetitions() {
       competitionNumber: competitions.competitionNumber,
       competitionType: competitions.competitionType,
       participantMode: competitions.participantMode,
+      duelPairId: competitions.duelPairId,
       status: competitions.status,
       maxParticipants: competitions.maxParticipants,
       startTime: competitions.startTime,
@@ -1392,6 +1394,7 @@ export async function getAllCompetitionsForExport() {
       title: competitions.title,
       competitionType: competitions.competitionType,
       participantMode: competitions.participantMode,
+      duelPairId: competitions.duelPairId,
       status: competitions.status,
       archived: competitions.archived,
       maxParticipants: competitions.maxParticipants,

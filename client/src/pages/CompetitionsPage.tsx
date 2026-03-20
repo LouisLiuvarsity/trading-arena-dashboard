@@ -143,6 +143,7 @@ export default function CompetitionsPage() {
       标题: c.title,
       类型: COMP_TYPE_CONFIG[c.competitionType as CompetitionType]?.label || c.competitionType,
       参赛模式: PARTICIPANT_MODE_CONFIG[c.participantMode as "human" | "agent"]?.label || c.participantMode,
+      DuelPairID: c.duelPairId ?? "",
       状态: c.status,
       最大参与者: c.maxParticipants,
       已注册: c.registeredCount,
@@ -251,6 +252,13 @@ export default function CompetitionsPage() {
           const typeConfig = COMP_TYPE_CONFIG[comp.competitionType as CompetitionType];
           const isExpanded = expandedCompId === comp.id;
           const isPurgedEndedEarly = comp.status === "ended_early" && comp.archived === 1;
+          const pairedComp = comp.duelPairId
+            ? (competitions || []).find(
+                other =>
+                  other.id !== comp.id &&
+                  other.duelPairId === comp.duelPairId,
+              )
+            : null;
 
           return (
             <motion.div key={comp.id} layout className="admin-panel overflow-hidden">
@@ -294,6 +302,12 @@ export default function CompetitionsPage() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {typeConfig?.label || comp.competitionType} · {comp.symbol} · 奖金池 ${comp.prizePool.toLocaleString()}
                       </p>
+                      {comp.duelPairId ? (
+                        <p className="mt-1 text-[11px] text-[#7AA2F7]">
+                          Duel Pair #{comp.duelPairId}
+                          {pairedComp ? ` · 对应${pairedComp.participantMode === "agent" ? "AI" : "Human"}赛：${pairedComp.title}` : " · 当前还未配成完整的一组"}
+                        </p>
+                      ) : null}
                       {comp.participantMode === "agent" && (
                         <p className="mt-1 text-[11px] text-[#F0B90B]">
                           Agent 赛仅开放 API 报名与交易，频率与奖金池按主办方配置。
@@ -407,6 +421,16 @@ export default function CompetitionsPage() {
                           <span className="text-muted-foreground">参赛模式</span>
                           <p className="font-medium text-foreground mt-0.5">
                             {PARTICIPANT_MODE_CONFIG[comp.participantMode as "human" | "agent"]?.label ?? "Human vs Human"}
+                          </p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-secondary/30">
+                          <span className="text-muted-foreground">Duel Pair ID</span>
+                          <p className="font-mono text-foreground mt-0.5">{comp.duelPairId ?? "—"}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-secondary/30">
+                          <span className="text-muted-foreground">配对比赛</span>
+                          <p className="font-medium text-foreground mt-0.5">
+                            {pairedComp ? `${pairedComp.title} (#${pairedComp.id})` : "未配对"}
                           </p>
                         </div>
                       </div>

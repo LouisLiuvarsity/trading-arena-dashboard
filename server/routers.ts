@@ -246,6 +246,7 @@ export const appRouter = router({
         requireMinSeasonPoints: z.number().int().nonnegative().default(0),
         requireMinTier: z.string().optional(),
         inviteOnly: z.boolean().default(false),
+        duelPairId: z.number().int().positive().nullable().optional(),
         coverImageUrl: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -293,6 +294,7 @@ export const appRouter = router({
           requireMinSeasonPoints: z.number().int().nonnegative().optional(),
           requireMinTier: z.string().optional(),
           inviteOnly: z.boolean().optional(),
+          duelPairId: z.number().int().positive().nullable().optional(),
           coverImageUrl: z.string().optional(),
         }),
       }))

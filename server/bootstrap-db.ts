@@ -2,7 +2,7 @@
  * Bootstrap DB — idempotent schema check for shared Arena database.
  *
  * Arena creates the core tables (competitions, seasons, etc.).
- * Dashboard needs extra columns (archived, coverImageUrl) and its own tables
+ * Dashboard needs extra columns (archived, coverImageUrl, duelPairId) and its own tables
  * (users, admin_logs, chat_moderation). This script ensures they exist.
  *
  * Uses information_schema queries for maximum compatibility across
@@ -27,11 +27,13 @@ export async function bootstrapDb(): Promise<void> {
 
     await safeAddColumn(db, "competitions", "archived", "int NOT NULL DEFAULT 0");
     await safeAddColumn(db, "competitions", "coverImageUrl", "varchar(512)");
+    await safeAddColumn(db, "competitions", "duelPairId", "int");
     await safeAddColumn(db, "seasons", "archived", "int NOT NULL DEFAULT 0");
 
     // ── Add missing indexes ──────────────────────────────────────────────
 
     await safeCreateIndex(db, "competitions", "idx_comp_archived", "archived");
+    await safeCreateIndex(db, "competitions", "idx_comp_duel_pair", "duelPairId");
 
     // ── Create dashboard-only tables ─────────────────────────────────────
 

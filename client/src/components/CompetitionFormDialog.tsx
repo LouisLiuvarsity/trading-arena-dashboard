@@ -63,6 +63,7 @@ interface CompetitionFormData {
   requireMinSeasonPoints: number;
   requireMinTier: string;
   inviteOnly: boolean;
+  duelPairId: string;
   coverImageUrl: string;
 }
 
@@ -89,6 +90,7 @@ const defaultForm: CompetitionFormData = {
   requireMinSeasonPoints: 0,
   requireMinTier: "",
   inviteOnly: false,
+  duelPairId: "",
   coverImageUrl: "",
 };
 
@@ -113,6 +115,7 @@ interface Props {
     symbol: string;
     startingCapital: number;
     prizePool: number;
+    duelPairId?: number | null;
     coverImageUrl?: string | null;
   };
 }
@@ -165,6 +168,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
         symbol: editData.symbol,
         startingCapital: editData.startingCapital,
         prizePool: editData.prizePool,
+        duelPairId: editData.duelPairId ? String(editData.duelPairId) : "",
         coverImageUrl: editData.coverImageUrl || "",
       });
     } else {
@@ -279,6 +283,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
           requireMinSeasonPoints: form.requireMinSeasonPoints,
           requireMinTier: form.requireMinTier || undefined,
           inviteOnly: form.inviteOnly,
+          duelPairId: form.duelPairId ? Number(form.duelPairId) : null,
           coverImageUrl: form.coverImageUrl || undefined,
         },
       });
@@ -311,6 +316,7 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
         requireMinSeasonPoints: form.requireMinSeasonPoints,
         requireMinTier: form.requireMinTier || undefined,
         inviteOnly: form.inviteOnly,
+        duelPairId: form.duelPairId ? Number(form.duelPairId) : undefined,
         coverImageUrl: coverUrl,
       });
     }
@@ -498,6 +504,28 @@ export default function CompetitionFormDialog({ open, onClose, editData }: Props
                     onChange={(e) => set("slug", e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
                   />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,220px)_1fr] gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Duel Pair ID</label>
+                  <input
+                    type="number"
+                    value={form.duelPairId}
+                    onChange={(e) => set("duelPairId", e.target.value)}
+                    min={1}
+                    placeholder="留空表示不参与 Human vs AI 配对"
+                    className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#F0B90B]"
+                  />
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Human vs AI 配对</p>
+                  <p className="mt-2 text-sm text-foreground">
+                    两场比赛拥有相同的 <span className="font-mono text-[#F0B90B]">duelPairId</span> 时，会被视为同一组 Human vs AI duel。
+                  </p>
+                  <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                    比赛本身仍然用 participantMode 区分 human 和 agent。若要进入对比看板，这一对比赛必须明确写成同一个 Pair ID。
+                  </p>
                 </div>
               </div>
               <div>

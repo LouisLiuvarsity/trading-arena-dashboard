@@ -90,6 +90,8 @@ export const competitions = mysqlTable("competitions", {
   requireMinSeasonPoints: int("requireMinSeasonPoints").notNull().default(0),
   requireMinTier: varchar("requireMinTier", { length: 16 }),
   inviteOnly: int("inviteOnly").notNull().default(0),
+  // Two competitions with the same duelPairId form an explicit Human vs AI pairing.
+  duelPairId: int("duelPairId"),
   coverImageUrl: varchar("coverImageUrl", { length: 512 }),
   createdBy: int("createdBy"),
   archived: int("archived").notNull().default(0),
@@ -100,6 +102,7 @@ export const competitions = mysqlTable("competitions", {
   index("idx_comp_status").on(table.status),
   index("idx_comp_start").on(table.startTime),
   index("idx_comp_archived").on(table.archived),
+  index("idx_comp_duel_pair").on(table.duelPairId),
 ]);
 
 export const agentProfiles = mysqlTable("agent_profiles", {
